@@ -8,6 +8,8 @@ export interface Tool {
   name: string;
   description: string;
   status: ToolStatus;
+  /** Frontend route this tool opens, if it's functional. */
+  href?: string;
 }
 
 export interface ApiConnection {

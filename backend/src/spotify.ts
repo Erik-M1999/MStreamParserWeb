@@ -24,8 +24,8 @@ const REDIRECT_URI =
 const FRONTEND_ORIGIN =
   process.env.FRONTEND_ORIGIN ?? "http://127.0.0.1:5173";
 
-// Minimal scopes for our test fetch of the user's profile.
-const SCOPES = "user-read-private user-read-email";
+// Scopes: profile basics + reading the currently playing track (for IMD).
+const SCOPES = "user-read-private user-read-email user-read-currently-playing";
 
 interface SpotifyTokens {
   access_token: string;
@@ -37,6 +37,8 @@ interface SpotifyTokens {
 let tokens: SpotifyTokens | null = null;
 // CSRF guard: the random "state" we sent to Spotify, expected back on callback.
 let pendingState: string | null = null;
+// The scopes Spotify actually granted (echoed back in the token response).
+let grantedScopes: string | null = null;
 
 /** Used by /api/connections to report whether Spotify is connected. */
 export function isSpotifyConnected(): boolean {
@@ -45,6 +47,85 @@ export function isSpotifyConnected(): boolean {
 
 function isConfigured(): boolean {
   return Boolean(CLIENT_ID && CLIENT_SECRET);
+}
+
+export interface CurrentTrack {
+  artist: string;
+  title: string;
+  album: string;
+  coverUrl: string | null;
+}
+
+// Shape of the bits of Spotify's currently-playing response we use.
+interface CurrentlyPlayingResponse {
+  item: {
+    name: string;
+    artists: { name: string }[];
+    album: { name: string; images: { url: string }[] };
+  } | null;
+}
+
+async function refreshAccessToken(): Promise<void> {
+  if (!tokens) throw new Error("not_connected");
+  const res = await fetch(SPOTIFY_TOKEN_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Authorization:
+        "Basic " +
+        Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString("base64"),
+    },
+    body: new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: tokens.refresh_token,
+    }),
+  });
+  if (!res.ok) throw new Error("refresh_failed");
+  const data = (await res.json()) as {
+    access_token: string;
+    expires_in: number;
+    refresh_token?: string;
+  };
+  tokens = {
+    access_token: data.access_token,
+    // Spotify may omit a new refresh token; keep the existing one if so.
+    refresh_token: data.refresh_token ?? tokens.refresh_token,
+    expires_at: Date.now() + data.expires_in * 1000,
+  };
+}
+
+/** Returns a usable access token, refreshing it if it's about to expire. */
+export async function getValidAccessToken(): Promise<string> {
+  if (!tokens) throw new Error("not_connected");
+  if (Date.now() >= tokens.expires_at - 60_000) {
+    await refreshAccessToken();
+  }
+  return tokens!.access_token;
+}
+
+/** The track currently playing, or null if nothing is playing. */
+export async function getCurrentTrack(): Promise<CurrentTrack | null> {
+  const token = await getValidAccessToken();
+  const res = await fetch(`${SPOTIFY_API_BASE}/me/player/currently-playing`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (res.status === 204) return null; // nothing playing
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    console.error(`[spotify] currently-playing ${res.status}:`, detail);
+    throw new Error(`spotify_${res.status}`);
+  }
+
+  const data = (await res.json()) as CurrentlyPlayingResponse;
+  const item = data.item;
+  if (!item) return null;
+
+  return {
+    artist: item.artists?.[0]?.name ?? "Unknown artist",
+    title: item.name ?? "Unknown title",
+    album: item.album?.name ?? "",
+    coverUrl: item.album?.images?.[0]?.url ?? null,
+  };
 }
 
 // Step 1: send the user to Spotify's login/consent screen.
@@ -64,6 +145,9 @@ router.get("/auth/spotify/login", (_req: Request, res: Response) => {
     redirect_uri: REDIRECT_URI,
     scope: SCOPES,
     state: pendingState,
+    // Force the consent screen. Without this, an already-authorized user is
+    // silently redirected and newly-added scopes are NOT granted.
+    show_dialog: "true",
   });
 
   res.redirect(`${SPOTIFY_AUTH_URL}?${params.toString()}`);
@@ -117,6 +201,7 @@ router.get("/auth/spotify/callback", async (req: Request, res: Response) => {
       access_token: string;
       refresh_token: string;
       expires_in: number;
+      scope: string;
     };
 
     tokens = {
@@ -124,6 +209,8 @@ router.get("/auth/spotify/callback", async (req: Request, res: Response) => {
       refresh_token: data.refresh_token,
       expires_at: Date.now() + data.expires_in * 1000,
     };
+    grantedScopes = data.scope ?? null;
+    console.log("[spotify] connected. granted scopes:", grantedScopes);
 
     res.redirect(`${FRONTEND_ORIGIN}/?spotify=connected`);
   } catch (err) {
@@ -158,6 +245,75 @@ router.get("/spotify/me", async (_req: Request, res: Response) => {
   } catch (err) {
     console.error("[spotify] /me error:", err);
     res.status(500).json({ error: "Failed to reach Spotify API." });
+  }
+});
+
+// What's playing right now (used by the Immersive Display tool & UI).
+router.get("/spotify/now-playing", async (_req: Request, res: Response) => {
+  try {
+    const track = await getCurrentTrack();
+    if (!track) {
+      res.json({ playing: false });
+      return;
+    }
+    res.json({ playing: true, ...track });
+  } catch (err) {
+    if (err instanceof Error && err.message === "not_connected") {
+      res.status(401).json({ error: "Not connected to Spotify." });
+      return;
+    }
+    console.error("[spotify] now-playing error:", err);
+    res.status(502).json({ error: "Failed to reach Spotify." });
+  }
+});
+
+// Debug helper: do a raw GET against Spotify and return status + parsed body.
+async function rawSpotifyGet(token: string, path: string) {
+  const r = await fetch(`${SPOTIFY_API_BASE}${path}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const text = await r.text();
+  let body: unknown = text || null;
+  try {
+    if (text) body = JSON.parse(text);
+  } catch {
+    /* leave as raw text */
+  }
+  return {
+    status: r.status,
+    statusText: r.statusText,
+    contentType: r.headers.get("content-type"),
+    body,
+  };
+}
+
+// Debug window: open http://127.0.0.1:3000/api/spotify/debug in the browser to
+// see what Spotify actually returns (granted scopes, currently-playing, device).
+router.get("/spotify/debug", async (_req: Request, res: Response) => {
+  // Development-only: never expose raw Spotify data on a production server.
+  if (process.env.NODE_ENV === "production") {
+    res.sendStatus(404);
+    return;
+  }
+  try {
+    const token = await getValidAccessToken();
+    const [currentlyPlaying, player] = await Promise.all([
+      rawSpotifyGet(token, "/me/player/currently-playing"),
+      rawSpotifyGet(token, "/me/player"),
+    ]);
+    res.json({
+      connected: true,
+      requestedScopes: SCOPES,
+      grantedScopes,
+      currentlyPlaying,
+      player,
+    });
+  } catch (err) {
+    if (err instanceof Error && err.message === "not_connected") {
+      res.status(401).json({ error: "Not connected to Spotify." });
+      return;
+    }
+    res.status(502).json({ error: err instanceof Error ? err.message : String(err) });
   }
 });
 

@@ -1,5 +1,6 @@
 node_modules/
 dist/
+log/
 *.log
 
 # Secrets — NEVER commit. Only .env.example (placeholders) is tracked.
