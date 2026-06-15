@@ -1,0 +1,19 @@
+{
+  "name": "mstreamparser-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Express backend for MStreamParserWeb. Serves read-only dashboard data.",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "express": "5.2.1"
+  },
+  "devDependencies": {
+    "typescript": "6.0.3",
+    "@types/node": "24.13.2",
+    "@types/express": "5.0.6"
+  }
+}

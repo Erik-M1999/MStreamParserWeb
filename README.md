@@ -17,11 +17,15 @@ Roadmap:
 
 -> When repo has reached a working state with all mandatory function implemented, add other APIs.
 
+
+####
+
 Class progress and report (DE):
 
 01)
 
 02) "Braucht eure App SSR/Next.js – oder wäre Vite eigentlich besser geeignet? Begründet anhand von SEO und Interaktivität."
+
 Vite wäre grundsätzlich besser geeignet, da der Inhalt der Webapp hauptsächlich erst nach API Aktionen entsteht und der größere Anteil hinter Login versteckt ist. Daher ist der SEO Anteil nahezu irrelevant.
 
 03) API Resources:

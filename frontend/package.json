@@ -1,0 +1,26 @@
+{
+  "name": "mstreamparser-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 5173",
+    "build": "next build",
+    "start": "next start -p 5173"
+  },
+  "dependencies": {
+    "next": "16.2.9",
+    "react": "19.2.7",
+    "react-dom": "19.2.7"
+  },
+  "devDependencies": {
+    "typescript": "6.0.3",
+    "@types/node": "24.13.2",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "tailwindcss": "4.3.0",
+    "@tailwindcss/postcss": "4.3.0"
+  },
+  "overrides": {
+    "postcss": "8.5.15"
+  }
+}
