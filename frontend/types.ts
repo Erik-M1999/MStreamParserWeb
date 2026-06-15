@@ -16,3 +16,12 @@ export interface ApiConnection {
   /** Whether this API is connected in the current session. */
   connected: boolean;
 }
+
+// Subset of Spotify's /v1/me response that we display in the test panel.
+export interface SpotifyProfile {
+  id: string;
+  display_name: string | null;
+  email?: string;
+  product?: string;
+  external_urls?: { spotify?: string };
+}

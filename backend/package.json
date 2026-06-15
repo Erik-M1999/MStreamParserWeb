@@ -5,8 +5,9 @@
   "description": "Express backend for MStreamParserWeb. Serves read-only dashboard data.",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/server.js",
-    "dev": "tsc --watch"
+    "start": "node --env-file-if-exists=.env dist/server.js",
+    "watch": "tsc --watch",
+    "dev": "node --watch --env-file-if-exists=.env dist/server.js"
   },
   "dependencies": {
     "express": "5.2.1"

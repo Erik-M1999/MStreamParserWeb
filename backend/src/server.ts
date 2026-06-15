@@ -1,4 +1,5 @@
 import express, { type Request, type Response } from "express";
+import spotifyRouter, { isSpotifyConnected } from "./spotify.js";
 
 // ---------------------------------------------------------------------------
 // MStreamParserWeb — Express backend (port 3000)
@@ -46,9 +47,10 @@ const tools: Tool[] = [
   },
 ];
 
-const connections: ApiConnection[] = [
-  { id: "spotify", name: "Spotify", connected: false },
-];
+// Built fresh per request so the Spotify status reflects the current token state.
+function getConnections(): ApiConnection[] {
+  return [{ id: "spotify", name: "Spotify", connected: isSpotifyConnected() }];
+}
 
 // --- Routes ----------------------------------------------------------------
 
@@ -64,8 +66,11 @@ app.get("/api/tools", (_req: Request, res: Response) => {
 
 // The available APIs and whether they are connected this session.
 app.get("/api/connections", (_req: Request, res: Response) => {
-  res.json(connections);
+  res.json(getConnections());
 });
+
+// Spotify OAuth + test-fetch routes (mounted under /api).
+app.use("/api", spotifyRouter);
 
 app.listen(PORT, () => {
   console.log(`[backend] listening on http://127.0.0.1:${PORT}`);

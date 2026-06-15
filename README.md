@@ -3,14 +3,19 @@ Web based service to process and utilize various music streaming APIs.
 Includes web based integration of ImmersiveMusicDisplay (https://github.com/Erik-M1999/ImmersiveMusicDisplay)
 
 Current TODO*:
-- Set up and run a very basic web environment
-- Get working Spotify API that runs at 127.0.0.1 and not localhost due to Spotify API limitations.
+- Integrate the current song mode
+- Add window with available presets for testing
+- Add two other modes, playlist and queue
+- Add SVG checkers for invalid tags
+- Add SVG editor
+- Save JSON queries for each for testing and demonstrating purposes
+
 
 Roadmap:
-- [ ] *Implement basic Web and Spotify API connection.
-- [ ] Do not forget to NOT commit  API key.
+- [X] Implement basic Web and Spotify API connection.
+- [X] Do not forget to NOT commit  API key.
+- [ ] *Integrate and expand ImmersiveMusicDisplay functionality.
 - [ ] Set up optional login with databases.
-- [ ] Integrate and expand ImmersiveMusicDisplay functionality.
 - [ ] Set up API for external tool access. Test it with 3Ds Max.
 - [ ] Add parser to convert playlists into plain .txt or .csv files.
 - [ ] Trial a different API, especially last.fm.
