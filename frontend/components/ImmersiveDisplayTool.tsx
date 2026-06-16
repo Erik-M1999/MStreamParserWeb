@@ -1,7 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type DragEvent,
+} from "react";
 import { BACKEND_URL } from "@/config";
+import { focusSvgToContent } from "@/lib/focusSvg";
 
 interface NowPlaying {
   playing: boolean;
@@ -20,6 +27,7 @@ export default function ImmersiveDisplayTool({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
 
   // Object URLs must be revoked to avoid leaks; track the current one.
@@ -66,7 +74,9 @@ export default function ImmersiveDisplayTool({
         return;
       }
       const filled = await res.text();
-      const blob = new Blob([filled], { type: "image/svg+xml" });
+      // Reframe to the artwork so the preview isn't mostly empty canvas.
+      const focused = focusSvgToContent(filled);
+      const blob = new Blob([focused], { type: "image/svg+xml" });
       setPreview(URL.createObjectURL(blob));
       void fetchNowPlaying();
     } catch {
@@ -76,13 +86,39 @@ export default function ImmersiveDisplayTool({
     }
   }
 
-  async function onFileChange(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  async function handleFile(file: File) {
+    const isSvg =
+      file.type === "image/svg+xml" || file.name.toLowerCase().endsWith(".svg");
+    if (!isSvg) {
+      setError("Please provide an .svg file.");
+      return;
+    }
     const text = await file.text();
     setTemplateSvg(text);
     setTemplateName(file.name);
     await render(text);
+  }
+
+  function onFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) void handleFile(file);
+  }
+
+  function onDrop(e: DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) void handleFile(file);
+  }
+
+  function onDragOver(e: DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    if (!dragging) setDragging(true);
+  }
+
+  function onDragLeave(e: DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    setDragging(false);
   }
 
   if (!connected) {
@@ -116,9 +152,23 @@ export default function ImmersiveDisplayTool({
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <label className="inline-block cursor-pointer rounded-md border border-neutral-700 px-4 py-2 text-sm hover:border-neutral-500">
-          {templateName ? `Template: ${templateName}` : "Upload SVG template"}
+      {/* Drag-and-drop zone (also click-to-browse). */}
+      <div
+        onDrop={onDrop}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        className={`rounded-lg border-2 border-dashed p-6 text-center transition-colors ${
+          dragging
+            ? "border-green-500 bg-green-500/10"
+            : "border-neutral-700 bg-neutral-900/30"
+        }`}
+      >
+        <p className="text-sm text-neutral-300">
+          Drag &amp; drop an SVG template here
+        </p>
+        <p className="mt-1 text-xs text-neutral-500">or</p>
+        <label className="mt-2 inline-block cursor-pointer rounded-md border border-neutral-700 px-4 py-2 text-sm hover:border-neutral-500">
+          Browse files
           <input
             type="file"
             accept=".svg,image/svg+xml"
@@ -126,15 +176,21 @@ export default function ImmersiveDisplayTool({
             onChange={onFileChange}
           />
         </label>
+        {templateName && (
+          <p className="mt-3 text-xs text-neutral-400">Loaded: {templateName}</p>
+        )}
+      </div>
+
+      {templateSvg && (
         <button
           type="button"
-          disabled={!templateSvg || loading}
-          onClick={() => templateSvg && render(templateSvg)}
+          disabled={loading}
+          onClick={() => render(templateSvg)}
           className="rounded-md bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-900 transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
         >
           {loading ? "Rendering…" : "Re-render with current song"}
         </button>
-      </div>
+      )}
 
       {error && (
         <div className="rounded-md border border-red-900/60 bg-red-500/10 px-4 py-3 text-sm text-red-300">
@@ -152,7 +208,7 @@ export default function ImmersiveDisplayTool({
           <img
             src={previewUrl}
             alt="Rendered template preview"
-            className="mx-auto max-h-[28rem] w-auto"
+            className="mx-auto max-h-[24rem] w-auto"
           />
         </div>
       )}

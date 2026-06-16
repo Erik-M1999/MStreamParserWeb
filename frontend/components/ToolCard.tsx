@@ -1,7 +1,12 @@
-import Link from "next/link";
 import type { Tool } from "@/types";
 
-export default function ToolCard({ tool }: { tool: Tool }) {
+export default function ToolCard({
+  tool,
+  onOpen,
+}: {
+  tool: Tool;
+  onOpen?: () => void;
+}) {
   const isAvailable = tool.status === "available";
 
   const inner = (
@@ -23,17 +28,18 @@ export default function ToolCard({ tool }: { tool: Tool }) {
   );
 
   const baseClasses =
-    "block rounded-lg border border-neutral-800 bg-neutral-900/50 p-5";
+    "block w-full rounded-lg border border-neutral-800 bg-neutral-900/50 p-5 text-left";
 
-  // Functional tools (with a route) are clickable; others are static cards.
-  if (tool.href) {
+  // Functional tools open in a modal; others are static cards.
+  if (onOpen) {
     return (
-      <Link
-        href={tool.href}
+      <button
+        type="button"
+        onClick={onOpen}
         className={`${baseClasses} transition-colors hover:border-neutral-600 hover:bg-neutral-900`}
       >
         {inner}
-      </Link>
+      </button>
     );
   }
 

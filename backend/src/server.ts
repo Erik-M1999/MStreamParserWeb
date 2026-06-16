@@ -51,8 +51,6 @@ interface Tool {
   name: string;
   description: string;
   status: ToolStatus;
-  /** Frontend route this tool opens, if it's functional. */
-  href?: string;
 }
 
 interface ApiConnection {
@@ -76,7 +74,6 @@ const tools: Tool[] = [
     name: "Immersive Music Display",
     description: "Fill an SVG template with the song you're currently playing.",
     status: "available",
-    href: "/tools/immersive-display",
   },
 ];
 

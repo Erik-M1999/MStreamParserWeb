@@ -1,5 +1,5 @@
 import TopBar from "@/components/TopBar";
-import ToolCard from "@/components/ToolCard";
+import ToolsSection from "@/components/ToolsSection";
 import { BACKEND_URL } from "@/config";
 import type { ApiConnection, SpotifyProfile, Tool } from "@/types";
 
@@ -44,11 +44,7 @@ export default async function HomePage() {
           Available tools for processing your music streaming data.
         </p>
 
-        <div className="mt-8 grid gap-4 sm:grid-cols-2">
-          {tools.map((tool) => (
-            <ToolCard key={tool.id} tool={tool} />
-          ))}
-        </div>
+        <ToolsSection tools={tools} spotifyConnected={spotifyConnected} />
 
         {profile && (
           <section className="mt-10 rounded-lg border border-green-900/50 bg-green-500/5 p-5">
