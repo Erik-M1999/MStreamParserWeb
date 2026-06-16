@@ -1,8 +1,8 @@
-// Client-only. Reframes an SVG so its actual artwork fills the viewport,
-// like Affinity's "Selection Area" export. The templates declare a big
-// viewBox (e.g. 0 0 10000 10000) but only use part of it, so the raw preview
-// looks tiny. We measure the real content bounds with getBBox() and set the
-// viewBox to them. Returns the original string if bounds can't be determined.
+// Client-only. PREVIEW ONLY: reframes an SVG so its artwork fills the viewport,
+// like Affinity's "Selection Area" export. The templates declare a big viewBox
+// (e.g. 0 0 10000 10000) but only use part of it, so the raw preview looks tiny.
+// Downloads/exports always use the FULL original document, not this cropped view.
+// Falls back to the document as-is if content bounds can't be found.
 
 export function focusSvgToContent(svgString: string, paddingRatio = 0.04): string {
   if (typeof window === "undefined") return svgString;
@@ -27,7 +27,6 @@ export function focusSvgToContent(svgString: string, paddingRatio = 0.04): strin
   // live DOM (the only step where an SVG could otherwise execute code).
   stripActiveContent(svg);
 
-  // Attach an off-screen copy just long enough to measure it.
   const probe = document.importNode(svg, true) as unknown as SVGSVGElement;
   const holder = document.createElement("div");
   holder.setAttribute(
@@ -49,17 +48,35 @@ export function focusSvgToContent(svgString: string, paddingRatio = 0.04): strin
   if (!box || box.width <= 0 || box.height <= 0) return svgString;
 
   const pad = Math.max(box.width, box.height) * paddingRatio;
-  const x = box.x - pad;
-  const y = box.y - pad;
-  const w = box.width + pad * 2;
-  const h = box.height + pad * 2;
-
-  svg.setAttribute("viewBox", `${x} ${y} ${w} ${h}`);
+  svg.setAttribute(
+    "viewBox",
+    `${box.x - pad} ${box.y - pad} ${box.width + pad * 2} ${box.height + pad * 2}`,
+  );
   svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
   svg.setAttribute("width", "100%");
   svg.setAttribute("height", "100%");
 
   return new XMLSerializer().serializeToString(svg);
+}
+
+/** Reads the full document's size from viewBox (preferred) or width/height. */
+export function getSvgDimensions(svgString: string): {
+  width: number;
+  height: number;
+} {
+  const vb = svgString.match(/viewBox\s*=\s*"([\d.\-\s,]+)"/i);
+  if (vb) {
+    const parts = vb[1].trim().split(/[\s,]+/).map(Number);
+    if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
+      return { width: parts[2], height: parts[3] };
+    }
+  }
+  const w = svgString.match(/\bwidth\s*=\s*"([\d.]+)/i);
+  const h = svgString.match(/\bheight\s*=\s*"([\d.]+)/i);
+  if (w && h && Number(w[1]) > 0 && Number(h[1]) > 0) {
+    return { width: Number(w[1]), height: Number(h[1]) };
+  }
+  return { width: 1000, height: 1000 };
 }
 
 function stripActiveContent(root: Element) {
