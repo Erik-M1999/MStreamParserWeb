@@ -10,6 +10,11 @@ import {
 import { BACKEND_URL } from "@/config";
 import { focusSvgToContent, getSvgDimensions } from "@/lib/imd/focusSvg";
 import { downloadBlob, svgStringToBlob, svgToPngBlob } from "@/lib/imd/download";
+import {
+  measureText,
+  applyTextOffset,
+  type TextMetrics,
+} from "@/lib/imd/textOffset";
 
 interface NowPlaying {
   playing: boolean;
@@ -64,6 +69,16 @@ function sanitizeFileBase(s: string): string {
   return s.replace(/[^\w.-]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 80) || "immersive-display";
 }
 
+function round1(n: number): number {
+  return Math.round(n * 10) / 10;
+}
+
+function clampPct(value: string | number): number {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0.1;
+  return Math.min(500, Math.max(0.1, round1(n)));
+}
+
 export default function CurrentSongMode({
   connected,
 }: {
@@ -79,6 +94,17 @@ export default function CurrentSongMode({
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
   // The song the current preview was rendered for (to detect track changes).
   const [renderedKey, setRenderedKey] = useState<string | null>(null);
+
+  // Long-text handling. rawFilled = the backend's output; the displayed/
+  // exported SVG is derived from it + these settings (see the effect below).
+  // Width % + fade % are SHARED by title & artist; offsets are independent.
+  const [rawFilled, setRawFilled] = useState<string | null>(null);
+  const [textMetrics, setTextMetrics] = useState<TextMetrics | null>(null);
+  const [longText, setLongText] = useState(false);
+  const [widthPct, setWidthPct] = useState(0); // window width, % of viewBox width
+  const [fadePct, setFadePct] = useState(20); // left-fade width, % of the window
+  const [titleOffsetRoot, setTitleOffsetRoot] = useState(0);
+  const [artistOffsetRoot, setArtistOffsetRoot] = useState(0);
 
   // PNG export controls.
   const [pngScale, setPngScale] = useState<PngScale>("original");
@@ -107,6 +133,30 @@ export default function CurrentSongMode({
       setCustomH(Math.round(rendered.height));
     }
   }, [rendered]);
+
+  // Derive the displayed + exported SVG from the raw fill + long-text settings.
+  // Re-runs when any setting changes so preview and downloads stay in sync.
+  useEffect(() => {
+    if (!rawFilled) {
+      setRendered(null);
+      setPreview(null);
+      return;
+    }
+    const vb = textMetrics?.viewBoxWidth ?? 0;
+    let active = rawFilled;
+    if (longText && vb > 0 && widthPct > 0) {
+      const thresholdRoot = (widthPct / 100) * vb;
+      const fadeRatio = fadePct / 100;
+      active = applyTextOffset(rawFilled, {
+        title: { thresholdRoot, offsetRoot: titleOffsetRoot, fadeRatio },
+        artist: { thresholdRoot, offsetRoot: artistOffsetRoot, fadeRatio },
+      });
+    }
+    const dims = getSvgDimensions(active);
+    setRendered({ fullSvg: active, width: dims.width, height: dims.height });
+    setPreview(URL.createObjectURL(svgStringToBlob(focusSvgToContent(active))));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rawFilled, longText, widthPct, fadePct, titleOffsetRoot, artistOffsetRoot]);
 
   async function fetchNowPlaying(): Promise<NowPlaying | null> {
     try {
@@ -143,17 +193,22 @@ export default function CurrentSongMode({
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
         setError(data.error ?? `Render failed (${res.status}).`);
-        setPreview(null);
-        setRendered(null);
+        setRawFilled(null);
+        setTextMetrics(null);
         return;
       }
       const filled = await res.text();
-      // Keep the full document for downloads…
-      const dims = getSvgDimensions(filled);
-      setRendered({ fullSvg: filled, width: dims.width, height: dims.height });
-      // …but preview the content-focused version so it isn't mostly empty.
-      const focused = focusSvgToContent(filled);
-      setPreview(URL.createObjectURL(svgStringToBlob(focused)));
+      setRawFilled(filled); // the effect derives the preview + export SVG
+      // Measure title + artist; shared defaults from whichever field exists
+      // (title and artist share the same horizontal geometry in these templates).
+      const metrics = measureText(filled);
+      setTextMetrics(metrics);
+      const ref = metrics.title.present ? metrics.title : metrics.artist;
+      const vb = metrics.viewBoxWidth || 1;
+      setWidthPct(ref.present ? round1((ref.suggestedThresholdRoot / vb) * 100) : 0);
+      setFadePct(round1(ref.fadeRatio * 100));
+      setTitleOffsetRoot(0);
+      setArtistOffsetRoot(0);
       // Remember which song this preview reflects, to flag later changes.
       setRenderedKey(songKey(await fetchNowPlaying()));
     } catch {
@@ -230,6 +285,19 @@ export default function CurrentSongMode({
     if (rendered) setCustomW(clampInt((h * rendered.width) / rendered.height));
   }
 
+  function thresholdRoot(): number {
+    return ((textMetrics?.viewBoxWidth ?? 0) * widthPct) / 100;
+  }
+
+  function randomizeSlot(which: "title" | "artist") {
+    if (!textMetrics) return;
+    const widthRoot = textMetrics[which].widthRoot;
+    const overflow = Math.max(0, widthRoot - thresholdRoot());
+    const value = Math.random() * overflow;
+    if (which === "title") setTitleOffsetRoot(value);
+    else setArtistOffsetRoot(value);
+  }
+
   function downloadSvg() {
     if (!rendered) return;
     downloadBlob(svgStringToBlob(rendered.fullSvg), `${fileBase()}.svg`);
@@ -270,6 +338,19 @@ export default function CurrentSongMode({
   const songChanged = Boolean(
     previewUrl && renderedKey && liveKey && liveKey !== renderedKey,
   );
+  const tRoot = thresholdRoot();
+  const titleOverflow = Boolean(
+    textMetrics?.title.present && textMetrics.title.widthRoot > tRoot,
+  );
+  const artistOverflow = Boolean(
+    textMetrics?.artist.present && textMetrics.artist.widthRoot > tRoot,
+  );
+  const hasTextField = Boolean(
+    textMetrics?.title.present || textMetrics?.artist.present,
+  );
+  // Active only while enabled AND something actually overflows, so the controls
+  // collapse (and the box reads unchecked) when a re-render fits the boundary.
+  const longTextActive = longText && (titleOverflow || artistOverflow);
 
   return (
     <div className="space-y-6">
@@ -356,6 +437,84 @@ export default function CurrentSongMode({
             alt="Rendered template preview"
             className="mx-auto max-h-[24rem] w-auto"
           />
+
+          {/* Long-text handling (title + artist share width/fade; randomize is per-field) */}
+          {hasTextField && (
+            <div className="mt-4 space-y-3 border-t border-neutral-800 pt-4">
+              <label
+                className={`flex items-center gap-2 text-sm ${
+                  titleOverflow || artistOverflow
+                    ? "text-neutral-300"
+                    : "cursor-not-allowed text-neutral-600"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={longTextActive}
+                  disabled={!titleOverflow && !artistOverflow}
+                  onChange={(e) => setLongText(e.target.checked)}
+                />
+                Handle long text (clip to width + left fade)
+              </label>
+
+              {longTextActive && (
+                <>
+                  <div className="flex flex-wrap items-end gap-3">
+                    <label className="flex flex-col text-xs text-neutral-500">
+                      Left fade (%)
+                      <input
+                        type="number"
+                        min={0.1}
+                        step={0.1}
+                        value={fadePct}
+                        onChange={(e) => setFadePct(clampPct(e.target.value))}
+                        className="mt-1 w-24 rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-sm text-neutral-100"
+                      />
+                    </label>
+                    <label className="flex flex-col text-xs text-neutral-500">
+                      Right fade (%)
+                      <input
+                        type="number"
+                        min={0.1}
+                        step={0.1}
+                        value={widthPct}
+                        onChange={(e) => setWidthPct(clampPct(e.target.value))}
+                        className="mt-1 w-24 rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-sm text-neutral-100"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    {textMetrics?.title.present && (
+                      <button
+                        type="button"
+                        onClick={() => randomizeSlot("title")}
+                        disabled={!titleOverflow}
+                        className="rounded-md border border-neutral-700 px-4 py-2 text-sm hover:border-neutral-500 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        Randomize title
+                      </button>
+                    )}
+                    {textMetrics?.artist.present && (
+                      <button
+                        type="button"
+                        onClick={() => randomizeSlot("artist")}
+                        disabled={!artistOverflow}
+                        className="rounded-md border border-neutral-700 px-4 py-2 text-sm hover:border-neutral-500 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        Randomize artist
+                      </button>
+                    )}
+                    <span className="text-xs text-neutral-500">
+                      {titleOverflow || artistOverflow
+                        ? "Overflowing fields can be panned."
+                        : "Text fits — no offset needed."}
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
 
           {/* Downloads — always export the FULL document, not the crop. */}
           <div className="mt-4 space-y-3 border-t border-neutral-800 pt-4">
