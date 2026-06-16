@@ -46,7 +46,7 @@ function sanitizeFileBase(s: string): string {
   return s.replace(/[^\w.-]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 80) || "immersive-display";
 }
 
-export default function ImmersiveDisplayTool({
+export default function CurrentSongMode({
   connected,
 }: {
   connected: boolean;
