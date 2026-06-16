@@ -9,7 +9,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    // suppressHydrationWarning: browser extensions (e.g. Dark Reader) inject
+    // attributes onto <html> before React hydrates. This silences that specific,
+    // harmless mismatch on the root element only — it does not affect our markup.
+    <html lang="en" suppressHydrationWarning>
       <body className="min-h-screen bg-neutral-950 text-neutral-100 antialiased">
         {children}
       </body>
