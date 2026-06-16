@@ -13,9 +13,27 @@ import { downloadBlob, svgStringToBlob, svgToPngBlob } from "@/lib/imd/download"
 
 interface NowPlaying {
   playing: boolean;
+  /** false when a non-song (podcast episode/ad) is playing. */
+  supported?: boolean;
+  /** "track" | "episode" | "ad" | "unknown" */
+  type?: string;
   artist?: string;
   title?: string;
   album?: string;
+}
+
+/** A stable key for a playing song, or null if not a playable song. */
+function songKey(np: NowPlaying | null): string | null {
+  if (!np?.playing || np.supported === false || !np.artist || !np.title) {
+    return null;
+  }
+  return `${np.artist} — ${np.title}`;
+}
+
+function unsupportedLabel(type?: string): string {
+  if (type === "episode") return "a podcast episode";
+  if (type === "ad") return "an ad";
+  return "something that isn't a song";
 }
 
 // The full rendered document (NOT the cropped preview) — used for downloads.
@@ -59,6 +77,8 @@ export default function CurrentSongMode({
   const [loading, setLoading] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
+  // The song the current preview was rendered for (to detect track changes).
+  const [renderedKey, setRenderedKey] = useState<string | null>(null);
 
   // PNG export controls.
   const [pngScale, setPngScale] = useState<PngScale>("original");
@@ -88,17 +108,27 @@ export default function CurrentSongMode({
     }
   }, [rendered]);
 
-  async function fetchNowPlaying() {
+  async function fetchNowPlaying(): Promise<NowPlaying | null> {
     try {
       const res = await fetch(`${BACKEND_URL}/api/spotify/now-playing`);
-      if (res.ok) setNowPlaying((await res.json()) as NowPlaying);
+      if (res.ok) {
+        const data = (await res.json()) as NowPlaying;
+        setNowPlaying(data);
+        return data;
+      }
     } catch {
       /* non-critical */
     }
+    return null;
   }
 
+  // Poll so the "Now playing" line stays current and the user can see when the
+  // song changes (and re-render to it). Cleared when the modal/component closes.
   useEffect(() => {
-    if (connected) fetchNowPlaying();
+    if (!connected) return;
+    void fetchNowPlaying();
+    const id = setInterval(() => void fetchNowPlaying(), 10000);
+    return () => clearInterval(id);
   }, [connected]);
 
   async function render(svg: string) {
@@ -124,7 +154,8 @@ export default function CurrentSongMode({
       // …but preview the content-focused version so it isn't mostly empty.
       const focused = focusSvgToContent(filled);
       setPreview(URL.createObjectURL(svgStringToBlob(focused)));
-      void fetchNowPlaying();
+      // Remember which song this preview reflects, to flag later changes.
+      setRenderedKey(songKey(await fetchNowPlaying()));
     } catch {
       setError("Could not reach the backend. Is it running on port 3000?");
     } finally {
@@ -235,18 +266,28 @@ export default function CurrentSongMode({
     );
   }
 
+  const liveKey = songKey(nowPlaying);
+  const songChanged = Boolean(
+    previewUrl && renderedKey && liveKey && liveKey !== renderedKey,
+  );
+
   return (
     <div className="space-y-6">
       <div className="text-sm text-neutral-400">
-        {nowPlaying?.playing ? (
+        {!nowPlaying?.playing ? (
+          "Nothing is playing on Spotify right now."
+        ) : nowPlaying.supported === false ? (
+          <span className="text-amber-400">
+            Spotify is playing {unsupportedLabel(nowPlaying.type)} — only songs
+            are supported.
+          </span>
+        ) : (
           <>
             Now playing:{" "}
             <span className="text-neutral-100">
               {nowPlaying.artist} — {nowPlaying.title}
             </span>
           </>
-        ) : (
-          "Nothing is playing on Spotify right now."
         )}
       </div>
 
@@ -280,14 +321,21 @@ export default function CurrentSongMode({
       </div>
 
       {templateSvg && (
-        <button
-          type="button"
-          disabled={loading}
-          onClick={() => render(templateSvg)}
-          className="rounded-md bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-900 transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {loading ? "Rendering…" : "Re-render with current song"}
-        </button>
+        <div className="space-y-2">
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() => render(templateSvg)}
+            className="rounded-md bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-900 transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {loading ? "Rendering…" : "Re-render with current song"}
+          </button>
+          {songChanged && (
+            <p className="text-xs text-amber-400">
+              The playing song changed — re-render to update the preview.
+            </p>
+          )}
+        </div>
       )}
 
       {error && (

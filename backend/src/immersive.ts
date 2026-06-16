@@ -1,9 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import {
-  getCurrentTrack,
-  getValidAccessToken,
-  type CurrentTrack,
-} from "./spotify.js";
+import { getNowPlaying, getValidAccessToken } from "./spotify.js";
 import { fillCurrentSongTemplate } from "./svgTemplate.js";
 
 // ---------------------------------------------------------------------------
@@ -42,21 +38,34 @@ router.post("/immersive/render", async (req: Request, res: Response) => {
     return;
   }
 
-  // Must be playing something.
-  let track: CurrentTrack | null;
+  // Must be playing a song (not nothing, not a podcast/ad).
+  let np;
   try {
-    track = await getCurrentTrack();
+    np = await getNowPlaying();
   } catch (err) {
     console.error("[immersive] current track error:", err);
     res.status(502).json({ error: "Failed to reach Spotify." });
     return;
   }
-  if (!track) {
+  if (np.state === "none") {
     res.status(409).json({
       error: "Nothing is playing on Spotify right now. Start playback and try again.",
     });
     return;
   }
+  if (np.state === "unsupported") {
+    const label =
+      np.type === "episode"
+        ? "a podcast episode"
+        : np.type === "ad"
+          ? "an ad"
+          : `a ${np.type}`;
+    res.status(409).json({
+      error: `Spotify is playing ${label}. Only songs are supported — play a track and try again.`,
+    });
+    return;
+  }
+  const track = np.track;
 
   const coverDataUri = track.coverUrl
     ? await fetchCoverDataUri(track.coverUrl)

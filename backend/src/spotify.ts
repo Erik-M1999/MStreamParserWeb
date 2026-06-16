@@ -58,12 +58,20 @@ export interface CurrentTrack {
 
 // Shape of the bits of Spotify's currently-playing response we use.
 interface CurrentlyPlayingResponse {
+  // "track" | "episode" | "ad" | "unknown"
+  currently_playing_type?: string;
   item: {
     name: string;
-    artists: { name: string }[];
-    album: { name: string; images: { url: string }[] };
+    // artists/album are absent for episodes (podcasts).
+    artists?: { name: string }[];
+    album?: { name: string; images: { url: string }[] };
   } | null;
 }
+
+export type NowPlayingResult =
+  | { state: "none" }
+  | { state: "unsupported"; type: string }
+  | { state: "track"; track: CurrentTrack };
 
 async function refreshAccessToken(): Promise<void> {
   if (!tokens) throw new Error("not_connected");
@@ -103,13 +111,16 @@ export async function getValidAccessToken(): Promise<string> {
   return tokens!.access_token;
 }
 
-/** The track currently playing, or null if nothing is playing. */
-export async function getCurrentTrack(): Promise<CurrentTrack | null> {
+/**
+ * What's playing right now: nothing, an unsupported type (podcast episode/ad),
+ * or a track with the fields we need.
+ */
+export async function getNowPlaying(): Promise<NowPlayingResult> {
   const token = await getValidAccessToken();
   const res = await fetch(`${SPOTIFY_API_BASE}/me/player/currently-playing`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (res.status === 204) return null; // nothing playing
+  if (res.status === 204) return { state: "none" }; // nothing playing
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
     console.error(`[spotify] currently-playing ${res.status}:`, detail);
@@ -117,14 +128,22 @@ export async function getCurrentTrack(): Promise<CurrentTrack | null> {
   }
 
   const data = (await res.json()) as CurrentlyPlayingResponse;
-  const item = data.item;
-  if (!item) return null;
+  if (!data.item) return { state: "none" };
 
+  // Only songs are supported — episodes (podcasts), ads, etc. are not.
+  if (data.currently_playing_type && data.currently_playing_type !== "track") {
+    return { state: "unsupported", type: data.currently_playing_type };
+  }
+
+  const item = data.item;
   return {
-    artist: item.artists?.[0]?.name ?? "Unknown artist",
-    title: item.name ?? "Unknown title",
-    album: item.album?.name ?? "",
-    coverUrl: item.album?.images?.[0]?.url ?? null,
+    state: "track",
+    track: {
+      artist: item.artists?.[0]?.name ?? "Unknown artist",
+      title: item.name ?? "Unknown title",
+      album: item.album?.name ?? "",
+      coverUrl: item.album?.images?.[0]?.url ?? null,
+    },
   };
 }
 
@@ -251,12 +270,16 @@ router.get("/spotify/me", async (_req: Request, res: Response) => {
 // What's playing right now (used by the Immersive Display tool & UI).
 router.get("/spotify/now-playing", async (_req: Request, res: Response) => {
   try {
-    const track = await getCurrentTrack();
-    if (!track) {
+    const np = await getNowPlaying();
+    if (np.state === "none") {
       res.json({ playing: false });
       return;
     }
-    res.json({ playing: true, ...track });
+    if (np.state === "unsupported") {
+      res.json({ playing: true, supported: false, type: np.type });
+      return;
+    }
+    res.json({ playing: true, supported: true, type: "track", ...np.track });
   } catch (err) {
     if (err instanceof Error && err.message === "not_connected") {
       res.status(401).json({ error: "Not connected to Spotify." });
