@@ -11,11 +11,42 @@ export interface ModeSlot {
   required: boolean;
 }
 
+function numbered(
+  prefix: string,
+  from: number,
+  to: number,
+  kind: "text" | "image",
+): ModeSlot[] {
+  const out: ModeSlot[] = [];
+  for (let i = from; i <= to; i++) {
+    out.push({ slot: `${prefix}${i}`, kind, required: false });
+  }
+  return out;
+}
+
 export const MODE_SLOTS: Record<string, ModeSlot[]> = {
   "current-song": [
     { slot: "artist", kind: "text", required: true },
     { slot: "title", kind: "text", required: true },
     { slot: "cover", kind: "image", required: true },
+  ],
+  // Current song (required) + up to 5 upcoming (2..6, optional).
+  queue: [
+    { slot: "current_artist", kind: "text", required: true },
+    { slot: "current_title", kind: "text", required: true },
+    { slot: "current_cover", kind: "image", required: true },
+    ...numbered("artist", 2, 6, "text"),
+    ...numbered("title", 2, 6, "text"),
+    ...numbered("cover", 2, 6, "image"),
+  ],
+  // Up to 5 playlists (2..6); the first (2) is required, the rest optional.
+  playlist: [
+    { slot: "title2", kind: "text", required: true },
+    { slot: "artist2", kind: "text", required: true },
+    { slot: "cover2", kind: "image", required: true },
+    ...numbered("title", 3, 6, "text"),
+    ...numbered("artist", 3, 6, "text"),
+    ...numbered("cover", 3, 6, "image"),
   ],
 };
 

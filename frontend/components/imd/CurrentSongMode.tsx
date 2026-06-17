@@ -86,7 +86,12 @@ export default function CurrentSongMode({
   pendingTemplate,
 }: {
   connected: boolean;
-  pendingTemplate?: { token: number; name: string; svg: string } | null;
+  pendingTemplate?: {
+    token: number;
+    name: string;
+    svg: string;
+    mode: string;
+  } | null;
 }) {
   const [templateSvg, setTemplateSvg] = useState<string | null>(null);
   const [templateName, setTemplateName] = useState<string | null>(null);
@@ -227,9 +232,9 @@ export default function CurrentSongMode({
     }
   }
 
-  // Load a template chosen from the library (token changes per selection).
+  // Load a template chosen from the library (only if it targets this mode).
   useEffect(() => {
-    if (!pendingTemplate) return;
+    if (!pendingTemplate || pendingTemplate.mode !== "current-song") return;
     setTemplateSvg(pendingTemplate.svg);
     setTemplateName(pendingTemplate.name);
     void render(pendingTemplate.svg);

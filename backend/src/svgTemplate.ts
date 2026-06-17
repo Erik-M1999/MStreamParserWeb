@@ -16,10 +16,11 @@ import { DOMParser, XMLSerializer } from "@xmldom/xmldom";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
-export interface CurrentSongFill {
-  artist: string;
-  title: string;
-  coverDataUri: string | null;
+export interface TemplateFill {
+  /** slot name -> text value */
+  text: Record<string, string>;
+  /** slot name -> image data URI (null entries are skipped) */
+  images: Record<string, string | null>;
 }
 
 // DOM nodes from xmldom are loosely typed here; we only use a small,
@@ -95,10 +96,7 @@ function fillImage(doc: AnyNode, name: string, dataUri: string): boolean {
   return true;
 }
 
-export function fillCurrentSongTemplate(
-  svg: string,
-  fill: CurrentSongFill,
-): string {
+export function fillTemplate(svg: string, fill: TemplateFill): string {
   const problems: string[] = [];
   const doc = new DOMParser({
     onError: (level, msg) => {
@@ -114,16 +112,17 @@ export function fillCurrentSongTemplate(
     );
   }
 
-  const filled: string[] = [];
-  if (fillText(doc, "artist", fill.artist)) filled.push("artist");
-  if (fillText(doc, "title", fill.title)) filled.push("title");
-  if (fill.coverDataUri && fillImage(doc, "cover", fill.coverDataUri)) {
-    filled.push("cover");
+  let filled = 0;
+  for (const [slot, value] of Object.entries(fill.text)) {
+    if (fillText(doc, slot, value)) filled++;
+  }
+  for (const [slot, uri] of Object.entries(fill.images)) {
+    if (uri && fillImage(doc, slot, uri)) filled++;
   }
 
-  if (filled.length === 0) {
+  if (filled === 0) {
     throw new Error(
-      "No fillable slots found. Expected template-id (or id) of 'artist', 'title', or 'cover'.",
+      "No fillable slots found for this mode. Check the template's tags.",
     );
   }
 

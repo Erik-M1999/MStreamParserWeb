@@ -24,8 +24,10 @@ const REDIRECT_URI =
 const FRONTEND_ORIGIN =
   process.env.FRONTEND_ORIGIN ?? "http://127.0.0.1:5173";
 
-// Scopes: profile basics + reading the currently playing track (for IMD).
-const SCOPES = "user-read-private user-read-email user-read-currently-playing";
+// Scopes: profile basics + currently playing (current-song) + playback state
+// (queue) + private playlists (playlist mode).
+const SCOPES =
+  "user-read-private user-read-email user-read-currently-playing user-read-playback-state playlist-read-private";
 
 interface SpotifyTokens {
   access_token: string;
@@ -266,6 +268,82 @@ router.get("/spotify/me", async (_req: Request, res: Response) => {
     res.status(500).json({ error: "Failed to reach Spotify API." });
   }
 });
+
+interface QueueItem {
+  type?: string;
+  name?: string;
+  artists?: { name: string }[];
+  album?: { name?: string; images?: { url: string }[] };
+}
+
+export interface QueueResult {
+  current: CurrentTrack | null;
+  queue: CurrentTrack[];
+}
+
+function normTrack(item: QueueItem | null): CurrentTrack | null {
+  if (!item) return null;
+  return {
+    artist: item.artists?.[0]?.name ?? "Unknown artist",
+    title: item.name ?? "Unknown title",
+    album: item.album?.name ?? "",
+    coverUrl: item.album?.images?.[0]?.url ?? null,
+  };
+}
+
+/** The currently playing track + the upcoming queue (tracks only). */
+export async function getQueue(): Promise<QueueResult> {
+  const token = await getValidAccessToken();
+  const res = await fetch(`${SPOTIFY_API_BASE}/me/player/queue`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (res.status === 204) return { current: null, queue: [] };
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    console.error(`[spotify] queue ${res.status}:`, detail);
+    throw new Error(`spotify_${res.status}`);
+  }
+  const data = (await res.json()) as {
+    currently_playing: QueueItem | null;
+    queue: QueueItem[];
+  };
+  const queue = (data.queue ?? [])
+    .filter((i) => i?.type === "track")
+    .map(normTrack)
+    .filter((t): t is CurrentTrack => t !== null);
+  return { current: normTrack(data.currently_playing), queue };
+}
+
+export interface PlaylistEntry {
+  title: string;
+  creator: string;
+  coverUrl: string | null;
+}
+
+/** The user's playlists (name -> title, owner -> "artist", image -> cover). */
+export async function getPlaylists(limit = 5): Promise<PlaylistEntry[]> {
+  const token = await getValidAccessToken();
+  const res = await fetch(`${SPOTIFY_API_BASE}/me/playlists?limit=${limit}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    console.error(`[spotify] playlists ${res.status}:`, detail);
+    throw new Error(`spotify_${res.status}`);
+  }
+  const data = (await res.json()) as {
+    items: {
+      name?: string;
+      owner?: { display_name?: string };
+      images?: { url: string }[];
+    }[];
+  };
+  return (data.items ?? []).map((p) => ({
+    title: p?.name ?? "Untitled",
+    creator: p?.owner?.display_name ?? "",
+    coverUrl: p?.images?.[0]?.url ?? null,
+  }));
+}
 
 // What's playing right now (used by the Immersive Display tool & UI).
 router.get("/spotify/now-playing", async (_req: Request, res: Response) => {

@@ -1,11 +1,16 @@
 import { Router, type Request, type Response } from "express";
-import { getNowPlaying, getValidAccessToken } from "./spotify.js";
-import { fillCurrentSongTemplate } from "./svgTemplate.js";
+import {
+  getNowPlaying,
+  getQueue,
+  getPlaylists,
+  getValidAccessToken,
+} from "./spotify.js";
+import { fillTemplate, type TemplateFill } from "./svgTemplate.js";
 
 // ---------------------------------------------------------------------------
 // ImmersiveMusicDisplay — render endpoint.
-// Takes an uploaded SVG template, fills it with the currently playing track,
-// and returns the filled SVG. "current song" mode only, for now.
+// Takes an uploaded SVG template + a mode, fills it with the relevant Spotify
+// data, and returns the filled SVG. Modes: current-song, queue, playlist.
 // ---------------------------------------------------------------------------
 
 const router = Router();
@@ -23,12 +28,87 @@ async function fetchCoverDataUri(url: string): Promise<string | null> {
   }
 }
 
+interface ConflictError {
+  status: 409;
+  message: string;
+}
+
+/** Builds the slot fill for a mode. Throws a ConflictError when there's no
+ *  suitable Spotify data (e.g. nothing playing). */
+async function buildFill(mode: string): Promise<{
+  text: Record<string, string>;
+  imageUrls: Record<string, string | null>;
+}> {
+  const text: Record<string, string> = {};
+  const imageUrls: Record<string, string | null> = {};
+
+  if (mode === "current-song") {
+    const np = await getNowPlaying();
+    if (np.state === "none") {
+      throw {
+        status: 409,
+        message: "Nothing is playing on Spotify right now. Start playback and try again.",
+      } as ConflictError;
+    }
+    if (np.state === "unsupported") {
+      const label =
+        np.type === "episode" ? "a podcast episode" : np.type === "ad" ? "an ad" : `a ${np.type}`;
+      throw {
+        status: 409,
+        message: `Spotify is playing ${label}. Only songs are supported — play a track and try again.`,
+      } as ConflictError;
+    }
+    text.artist = np.track.artist;
+    text.title = np.track.title;
+    imageUrls.cover = np.track.coverUrl;
+  } else if (mode === "queue") {
+    const q = await getQueue();
+    if (!q.current) {
+      throw {
+        status: 409,
+        message: "Nothing is playing on Spotify right now. Start playback and try again.",
+      } as ConflictError;
+    }
+    const list = [q.current, ...q.queue];
+    for (let i = 0; i < 6 && i < list.length; i++) {
+      const e = list[i];
+      const suffix = i === 0 ? "current" : `${i + 1}`; // current, 2..6
+      text[i === 0 ? "current_title" : `title${suffix}`] = e.title;
+      text[i === 0 ? "current_artist" : `artist${suffix}`] = e.artist;
+      imageUrls[i === 0 ? "current_cover" : `cover${suffix}`] = e.coverUrl;
+    }
+  } else if (mode === "playlist") {
+    const pls = await getPlaylists(5);
+    if (pls.length === 0) {
+      throw { status: 409, message: "No playlists found on your account." } as ConflictError;
+    }
+    for (let i = 0; i < 5 && i < pls.length; i++) {
+      const p = pls[i];
+      const n = i + 2; // 2..6
+      text[`title${n}`] = p.title;
+      text[`artist${n}`] = p.creator;
+      imageUrls[`cover${n}`] = p.coverUrl;
+    }
+  } else {
+    throw { status: 409, message: `Unknown mode "${mode}".` } as ConflictError;
+  }
+
+  return { text, imageUrls };
+}
+
+function isConflict(e: unknown): e is ConflictError {
+  return typeof e === "object" && e !== null && (e as ConflictError).status === 409;
+}
+
 router.post("/immersive/render", async (req: Request, res: Response) => {
   const template = typeof req.body === "string" ? req.body : "";
   if (!template.trim()) {
     res.status(400).json({ error: "No SVG template was provided." });
     return;
   }
+
+  const mode =
+    typeof req.query.mode === "string" ? req.query.mode : "current-song";
 
   // Must be connected to Spotify.
   try {
@@ -38,47 +118,33 @@ router.post("/immersive/render", async (req: Request, res: Response) => {
     return;
   }
 
-  // Must be playing a song (not nothing, not a podcast/ad).
-  let np;
+  // Gather the mode's data from Spotify.
+  let text: Record<string, string>;
+  let imageUrls: Record<string, string | null>;
   try {
-    np = await getNowPlaying();
+    ({ text, imageUrls } = await buildFill(mode));
   } catch (err) {
-    console.error("[immersive] current track error:", err);
+    if (isConflict(err)) {
+      res.status(409).json({ error: err.message });
+      return;
+    }
+    console.error("[immersive] spotify error:", err);
     res.status(502).json({ error: "Failed to reach Spotify." });
     return;
   }
-  if (np.state === "none") {
-    res.status(409).json({
-      error: "Nothing is playing on Spotify right now. Start playback and try again.",
-    });
-    return;
-  }
-  if (np.state === "unsupported") {
-    const label =
-      np.type === "episode"
-        ? "a podcast episode"
-        : np.type === "ad"
-          ? "an ad"
-          : `a ${np.type}`;
-    res.status(409).json({
-      error: `Spotify is playing ${label}. Only songs are supported — play a track and try again.`,
-    });
-    return;
-  }
-  const track = np.track;
 
-  const coverDataUri = track.coverUrl
-    ? await fetchCoverDataUri(track.coverUrl)
-    : null;
+  // Inline every cover as a data URI (in parallel).
+  const images: Record<string, string | null> = {};
+  await Promise.all(
+    Object.entries(imageUrls).map(async ([slot, url]) => {
+      images[slot] = url ? await fetchCoverDataUri(url) : null;
+    }),
+  );
 
   // Fill the template. A bad/unsupported template yields a clear 400.
   try {
-    const filled = fillCurrentSongTemplate(template, {
-      artist: track.artist,
-      title: track.title,
-      coverDataUri,
-    });
-    res.type("image/svg+xml").send(filled);
+    const fill: TemplateFill = { text, images };
+    res.type("image/svg+xml").send(fillTemplate(template, fill));
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Could not process the SVG template.";

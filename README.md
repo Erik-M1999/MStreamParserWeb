@@ -4,8 +4,6 @@ Includes web based integration of ImmersiveMusicDisplay (https://github.com/Erik
 
 Current TODO*:
 - Add two other modes, playlist and queue
-- Add SVG checkers for invalid tags
-- Add SVG editor
 - Save JSON queries for each for testing and demonstrating purposes
 
 

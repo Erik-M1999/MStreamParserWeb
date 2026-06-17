@@ -5,6 +5,7 @@ import CurrentSongMode from "./CurrentSongMode";
 import PlaylistMode from "./PlaylistMode";
 import QueueMode from "./QueueMode";
 import TemplateLibrary from "./TemplateLibrary";
+import { type PendingTemplate } from "./ModeWorkspace";
 import type { ImdDragPayload } from "@/lib/imd/dragPayload";
 
 type Mode = "current-song" | "playlist" | "queue";
@@ -14,12 +15,6 @@ const TABS: { id: Mode; label: string }[] = [
   { id: "playlist", label: "Playlist" },
   { id: "queue", label: "Queue" },
 ];
-
-export interface PendingTemplate {
-  token: number;
-  name: string;
-  svg: string;
-}
 
 export interface UserTemplate {
   id: string;
@@ -141,9 +136,10 @@ export default function ImmersiveDisplayTool({
   ) {
     const targetMode = (modes[0] as Mode) ?? "current-song";
     setMode(targetMode);
-    if (targetMode !== "current-song") return; // others are placeholders
     const svg = await resolveSvg();
-    if (svg != null) setPending({ token: Date.now(), name, svg });
+    if (svg != null) {
+      setPending({ token: Date.now(), name, svg, mode: targetMode });
+    }
   }
 
   return (
@@ -191,10 +187,10 @@ export default function ImmersiveDisplayTool({
           <CurrentSongMode connected={connected} pendingTemplate={pending} />
         </div>
         <div className={mode === "playlist" ? "" : "hidden"}>
-          <PlaylistMode />
+          <PlaylistMode connected={connected} pendingTemplate={pending} />
         </div>
         <div className={mode === "queue" ? "" : "hidden"}>
-          <QueueMode />
+          <QueueMode connected={connected} pendingTemplate={pending} />
         </div>
       </div>
     </div>
