@@ -16,6 +16,7 @@ import {
   type TextMetrics,
 } from "@/lib/imd/textOffset";
 import { IMD_DND_MIME, type ImdDragPayload } from "@/lib/imd/dragPayload";
+import SvgTagEditor from "@/components/imd/SvgTagEditor";
 
 interface NowPlaying {
   playing: boolean;
@@ -95,6 +96,7 @@ export default function CurrentSongMode({
   const [loading, setLoading] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [loadedOk, setLoadedOk] = useState(false); // last render succeeded
+  const [editorOpen, setEditorOpen] = useState(false); // SVG tag editor panel
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
   // The song the current preview was rendered for (to detect track changes).
   const [renderedKey, setRenderedKey] = useState<string | null>(null);
@@ -309,6 +311,12 @@ export default function CurrentSongMode({
     setDragging(false);
   }
 
+  function handleApplyTags(newSvg: string) {
+    setTemplateSvg(newSvg);
+    setEditorOpen(false);
+    void render(newSvg);
+  }
+
   function fileBase(): string {
     if (nowPlaying?.playing && nowPlaying.artist && nowPlaying.title) {
       return sanitizeFileBase(`${nowPlaying.artist} - ${nowPlaying.title}`);
@@ -483,6 +491,28 @@ export default function CurrentSongMode({
           </>
         )}
       </div>
+
+      {templateSvg && (
+        <div>
+          <button
+            type="button"
+            onClick={() => setEditorOpen((o) => !o)}
+            className="rounded-md border border-neutral-700 px-4 py-2 text-sm hover:border-neutral-500"
+          >
+            {editorOpen ? "Close tag editor" : "Edit tags"}
+          </button>
+          {editorOpen && (
+            <div className="mt-2">
+              <SvgTagEditor
+                svg={templateSvg}
+                mode="current-song"
+                onApply={handleApplyTags}
+                onClose={() => setEditorOpen(false)}
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       {templateSvg && (
         <div className="space-y-2">
