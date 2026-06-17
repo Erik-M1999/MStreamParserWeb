@@ -15,6 +15,7 @@ import {
   applyTextOffset,
   type TextMetrics,
 } from "@/lib/imd/textOffset";
+import { IMD_DND_MIME, type ImdDragPayload } from "@/lib/imd/dragPayload";
 
 interface NowPlaying {
   playing: boolean;
@@ -81,8 +82,10 @@ function clampPct(value: string | number): number {
 
 export default function CurrentSongMode({
   connected,
+  pendingTemplate,
 }: {
   connected: boolean;
+  pendingTemplate?: { token: number; name: string; svg: string } | null;
 }) {
   const [templateSvg, setTemplateSvg] = useState<string | null>(null);
   const [templateName, setTemplateName] = useState<string | null>(null);
@@ -91,6 +94,7 @@ export default function CurrentSongMode({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [loadedOk, setLoadedOk] = useState(false); // last render succeeded
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
   // The song the current preview was rendered for (to detect track changes).
   const [renderedKey, setRenderedKey] = useState<string | null>(null);
@@ -195,9 +199,11 @@ export default function CurrentSongMode({
         setError(data.error ?? `Render failed (${res.status}).`);
         setRawFilled(null);
         setTextMetrics(null);
+        setLoadedOk(false);
         return;
       }
       const filled = await res.text();
+      setLoadedOk(true);
       setRawFilled(filled); // the effect derives the preview + export SVG
       // Measure title + artist; shared defaults from whichever field exists
       // (title and artist share the same horizontal geometry in these templates).
@@ -213,10 +219,20 @@ export default function CurrentSongMode({
       setRenderedKey(songKey(await fetchNowPlaying()));
     } catch {
       setError("Could not reach the backend. Is it running on port 3000?");
+      setLoadedOk(false);
     } finally {
       setLoading(false);
     }
   }
+
+  // Load a template chosen from the library (token changes per selection).
+  useEffect(() => {
+    if (!pendingTemplate) return;
+    setTemplateSvg(pendingTemplate.svg);
+    setTemplateName(pendingTemplate.name);
+    void render(pendingTemplate.svg);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingTemplate?.token]);
 
   async function handleFile(file: File) {
     const isSvg =
@@ -236,15 +252,55 @@ export default function CurrentSongMode({
     if (file) void handleFile(file);
   }
 
+  async function handlePayload(p: ImdDragPayload) {
+    let svg = p.svg ?? null;
+    if (!svg && p.backendId) {
+      try {
+        const r = await fetch(
+          `${BACKEND_URL}/api/templates/${encodeURIComponent(p.backendId)}`,
+        );
+        if (r.ok) svg = await r.text();
+      } catch {
+        /* ignore */
+      }
+    }
+    if (!svg) return;
+    setTemplateSvg(svg);
+    setTemplateName(p.name);
+    await render(svg);
+  }
+
   function onDrop(e: DragEvent<HTMLDivElement>) {
     e.preventDefault();
     setDragging(false);
+    const payload = e.dataTransfer.getData(IMD_DND_MIME);
+    if (payload) {
+      try {
+        void handlePayload(JSON.parse(payload) as ImdDragPayload);
+      } catch {
+        /* ignore malformed payload */
+      }
+      return;
+    }
     const file = e.dataTransfer.files?.[0];
     if (file) void handleFile(file);
   }
 
+  // Drag the loaded file OUT to the Library to save it into a folder.
+  function onLoadedDragStart(e: DragEvent<HTMLDivElement>) {
+    if (!templateSvg) return;
+    const payload: ImdDragPayload = {
+      name: templateName ?? "template",
+      modes: ["current-song"],
+      svg: templateSvg,
+    };
+    e.dataTransfer.setData(IMD_DND_MIME, JSON.stringify(payload));
+    e.dataTransfer.effectAllowed = "all";
+  }
+
   function onDragOver(e: DragEvent<HTMLDivElement>) {
     e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
     if (!dragging) setDragging(true);
   }
 
@@ -372,7 +428,8 @@ export default function CurrentSongMode({
         )}
       </div>
 
-      {/* Drag-and-drop zone (also click-to-browse). */}
+      {/* Drag-and-drop zone (also click-to-browse). Once a file is loaded it
+          shows a draggable file icon you can drop into the Library to save. */}
       <div
         onDrop={onDrop}
         onDragOver={onDragOver}
@@ -383,21 +440,47 @@ export default function CurrentSongMode({
             : "border-neutral-700 bg-neutral-900/30"
         }`}
       >
-        <p className="text-sm text-neutral-300">
-          Drag &amp; drop an SVG template here
-        </p>
-        <p className="mt-1 text-xs text-neutral-500">or</p>
-        <label className="mt-2 inline-block cursor-pointer rounded-md border border-neutral-700 px-4 py-2 text-sm hover:border-neutral-500">
-          Browse files
-          <input
-            type="file"
-            accept=".svg,image/svg+xml"
-            className="hidden"
-            onChange={onFileChange}
-          />
-        </label>
-        {templateName && (
-          <p className="mt-3 text-xs text-neutral-400">Loaded: {templateName}</p>
+        {templateSvg ? (
+          <div className="flex flex-col items-center gap-2">
+            <div
+              draggable
+              onDragStart={onLoadedDragStart}
+              title="Drag into the Library to save"
+              className="cursor-grab select-none text-5xl leading-none"
+            >
+              🗎
+            </div>
+            <p
+              className={`text-sm ${loadedOk ? "text-green-400" : "text-amber-400"}`}
+            >
+              Loaded: {templateName}
+            </p>
+            <label className="cursor-pointer text-xs text-neutral-400 underline hover:text-neutral-200">
+              Drop or browse to replace
+              <input
+                type="file"
+                accept=".svg,image/svg+xml"
+                className="hidden"
+                onChange={onFileChange}
+              />
+            </label>
+          </div>
+        ) : (
+          <>
+            <p className="text-sm text-neutral-300">
+              Drag &amp; drop an SVG template here
+            </p>
+            <p className="mt-1 text-xs text-neutral-500">or</p>
+            <label className="mt-2 inline-block cursor-pointer rounded-md border border-neutral-700 px-4 py-2 text-sm hover:border-neutral-500">
+              Browse files
+              <input
+                type="file"
+                accept=".svg,image/svg+xml"
+                className="hidden"
+                onChange={onFileChange}
+              />
+            </label>
+          </>
         )}
       </div>
 

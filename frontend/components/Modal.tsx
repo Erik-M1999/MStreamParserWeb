@@ -40,7 +40,7 @@ export default function Modal({
       <div className="absolute inset-0 bg-black/60" aria-hidden onClick={onClose} />
 
       {/* Floating window */}
-      <div className="relative z-10 flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-neutral-800 bg-neutral-950 shadow-2xl">
+      <div className="relative z-10 flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-neutral-800 bg-neutral-950 shadow-2xl">
         <div className="flex items-center justify-between border-b border-neutral-800 px-5 py-3">
           <h2 className="text-sm font-semibold">{title}</h2>
           <button

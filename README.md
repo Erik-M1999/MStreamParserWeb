@@ -3,8 +3,6 @@ Web based service to process and utilize various music streaming APIs.
 Includes web based integration of ImmersiveMusicDisplay (https://github.com/Erik-M1999/ImmersiveMusicDisplay)
 
 Current TODO*:
-- Integrate the current song mode
-- Add window with available presets for testing
 - Add two other modes, playlist and queue
 - Add SVG checkers for invalid tags
 - Add SVG editor

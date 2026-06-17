@@ -1,6 +1,7 @@
 import express, { type Request, type Response } from "express";
 import spotifyRouter, { isSpotifyConnected } from "./spotify.js";
 import immersiveRouter from "./immersive.js";
+import templatesRouter from "./templates.js";
 
 // ---------------------------------------------------------------------------
 // MStreamParserWeb — Express backend (port 3000)
@@ -104,6 +105,9 @@ app.use("/api", spotifyRouter);
 
 // ImmersiveMusicDisplay render route (mounted under /api).
 app.use("/api", immersiveRouter);
+
+// Template library routes (mounted under /api).
+app.use("/api", templatesRouter);
 
 app.listen(PORT, () => {
   console.log(`[backend] listening on http://127.0.0.1:${PORT}`);
