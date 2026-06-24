@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { analyzeSvg, applyTags, suggestSlot } from "@/lib/imd/tagEditor";
 
 export default function SvgTagEditor({
@@ -23,6 +23,14 @@ export default function SvgTagEditor({
       return a;
     },
   );
+
+  // Re-initialize when the SVG (analysis) changes — e.g. a new file is dropped
+  // while the editor is open — so it never refers to the previous template.
+  useEffect(() => {
+    const a: Record<number, string | null> = {};
+    for (const c of analysis.candidates) a[c.ref] = c.tagValid ? c.currentTag : null;
+    setAssignments(a);
+  }, [analysis]);
 
   function setAssignment(ref: number, slot: string | null) {
     setAssignments((prev) => {
@@ -67,31 +75,36 @@ export default function SvgTagEditor({
         </button>
       </div>
 
-      {/* Required tags for this mode */}
-      <div>
-        <p className="text-xs uppercase tracking-wider text-neutral-500">
-          Required tags · {mode}
-        </p>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {analysis.slots
-            .filter((s) => s.required)
-            .map((s) => {
-              const ok = covered.has(s.slot);
-              return (
-                <span
-                  key={s.slot}
-                  className={`rounded px-2 py-0.5 text-xs ${
-                    ok
-                      ? "bg-green-500/15 text-green-400"
-                      : "bg-red-500/15 text-red-400"
-                  }`}
-                >
-                  {ok ? "✓" : "✗"} {s.slot}
+      {/* Only surface the mandatory tags that are still missing (needed for the
+          parser to work) — once they're all present this collapses to a tick. */}
+      {(() => {
+        const missing = analysis.slots.filter(
+          (s) => s.required && !covered.has(s.slot),
+        );
+        return (
+          <div>
+            <p className="text-xs uppercase tracking-wider text-neutral-500">
+              {missing.length ? "Missing mandatory tags" : "Mandatory tags"}
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {missing.length === 0 ? (
+                <span className="rounded bg-green-500/15 px-2 py-0.5 text-xs text-green-400">
+                  ✓ all present
                 </span>
-              );
-            })}
-        </div>
-      </div>
+              ) : (
+                missing.map((s) => (
+                  <span
+                    key={s.slot}
+                    className="rounded bg-red-500/15 px-2 py-0.5 text-xs text-red-400"
+                  >
+                    {s.slot}
+                  </span>
+                ))
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Per-element tag assignment */}
       <div>
