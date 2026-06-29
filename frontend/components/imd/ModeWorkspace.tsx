@@ -141,7 +141,7 @@ export default function ModeWorkspace({
     if (!svg && p.backendId) {
       try {
         const r = await fetch(
-          `${BACKEND_URL}/api/templates/${encodeURIComponent(p.backendId)}`,
+          `${BACKEND_URL}/api/sample-templates/${encodeURIComponent(p.backendId)}`,
         );
         if (r.ok) svg = await r.text();
       } catch {

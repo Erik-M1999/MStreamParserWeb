@@ -1,7 +1,10 @@
 import express, { type Request, type Response } from "express";
-import spotifyRouter, { isSpotifyConnected } from "./spotify.js";
-import immersiveRouter from "./immersive.js";
-import templatesRouter from "./templates.js";
+import spotifyRouter, { isSpotifyConnected } from "./routes/spotify.js";
+import immersiveRouter from "./routes/immersive.js";
+import sampleTemplatesRouter from "./routes/sampleTemplates.js";
+import authRouter from "./routes/auth.js";
+import templatesRouter from "./routes/templates.js";
+import foldersRouter from "./routes/folders.js";
 
 // ---------------------------------------------------------------------------
 // MStreamParserWeb — Express backend (port 3000)
@@ -30,6 +33,8 @@ app.use((req: Request, res: Response, next) => {
   if (origin && ALLOWED_ORIGINS.has(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Vary", "Origin");
+    // Allow the HttpOnly auth cookie on cross-origin (port-differing) calls.
+    res.setHeader("Access-Control-Allow-Credentials", "true");
   }
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -42,6 +47,8 @@ app.use((req: Request, res: Response, next) => {
 
 // Parse uploaded SVG templates (and plain text) as a raw string body.
 app.use(express.text({ type: ["image/svg+xml", "text/plain"], limit: "2mb" }));
+// Parse JSON bodies (auth routes). Different content-type from the text parser.
+app.use(express.json());
 
 // --- Data shapes -----------------------------------------------------------
 
@@ -106,8 +113,15 @@ app.use("/api", spotifyRouter);
 // ImmersiveMusicDisplay render route (mounted under /api).
 app.use("/api", immersiveRouter);
 
-// Template library routes (mounted under /api).
+// Read-only demo templates (the "_debug" set).
+app.use("/api", sampleTemplatesRouter);
+
+// Auth routes (register / login / logout / me) under /api.
+app.use("/api", authRouter);
+
+// Per-user resources (auth-protected) under /api.
 app.use("/api", templatesRouter);
+app.use("/api", foldersRouter);
 
 app.listen(PORT, () => {
   console.log(`[backend] listening on http://127.0.0.1:${PORT}`);

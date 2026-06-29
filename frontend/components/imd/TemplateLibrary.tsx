@@ -141,7 +141,7 @@ export default function TemplateLibrary({
   const [menu, setMenu] = useState<Menu | null>(null);
 
   useEffect(() => {
-    fetch(`${BACKEND_URL}/api/templates`)
+    fetch(`${BACKEND_URL}/api/sample-templates`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error())))
       .then((d: DebugTemplate[]) => setDebug(d))
       .catch(() => setError("Couldn't load templates."));
@@ -245,7 +245,7 @@ export default function TemplateLibrary({
     if (t.svg != null) return t.svg;
     if (t.backendId) {
       const r = await fetch(
-        `${BACKEND_URL}/api/templates/${encodeURIComponent(t.backendId)}`,
+        `${BACKEND_URL}/api/sample-templates/${encodeURIComponent(t.backendId)}`,
       );
       return r.ok ? await r.text() : null;
     }

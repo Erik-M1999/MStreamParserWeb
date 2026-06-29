@@ -5,7 +5,7 @@ import {
   getPlaylists,
   getValidAccessToken,
 } from "./spotify.js";
-import { fillTemplate, type TemplateFill } from "./svgTemplate.js";
+import { fillTemplate, type TemplateFill } from "../svgTemplate.js";
 
 // ---------------------------------------------------------------------------
 // ImmersiveMusicDisplay — render endpoint.

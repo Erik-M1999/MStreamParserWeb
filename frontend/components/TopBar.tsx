@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { BACKEND_URL } from "@/config";
 import type { ApiConnection } from "@/types";
 
@@ -45,6 +46,13 @@ export default function TopBar({ connections }: { connections: ApiConnection[] }
             </a>
           );
         })}
+
+        <Link
+          href="/login"
+          className="ml-2 rounded-full border border-neutral-700 px-3 py-1 text-sm text-neutral-200 transition-colors hover:border-neutral-500"
+        >
+          Log in
+        </Link>
       </nav>
     </header>
   );
