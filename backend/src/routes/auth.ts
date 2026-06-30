@@ -7,6 +7,7 @@ import {
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { prisma } from "../db.js";
+import { sendWelcomeEmail } from "../mail.js";
 import {
   JWT_SECRET,
   COOKIE_NAME,
@@ -114,6 +115,9 @@ router.post("/auth/register", authLimiter, async (req: Request, res: Response) =
     const user = await prisma.user.create({
       data: { email: emailN, username: usernameN, passwordHash },
     });
+    // Fire-and-forget: never let the (slow, external) mail send block or fail
+    // the registration response. The mail module swallows its own errors.
+    void sendWelcomeEmail(emailN, usernameN);
     res.status(201).json({ id: user.id, username: user.username });
   } catch (err) {
     console.error("[auth] register error:", err);
