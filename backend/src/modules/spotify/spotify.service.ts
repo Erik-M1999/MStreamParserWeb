@@ -1,18 +1,19 @@
-import { Router, type Request, type Response } from "express";
 import crypto from "node:crypto";
-import { prisma } from "../db.js";
-import { encryptSecret, decryptSecret } from "../crypto.js";
-import { authenticate, type AuthedRequest } from "../middleware/authenticate.js";
+import { prisma } from "../../db.js";
+import { encryptSecret, decryptSecret } from "../../crypto.js";
 
 // ---------------------------------------------------------------------------
-// Spotify OAuth (Authorization Code flow), scoped PER USER.
+// Spotify context logic: OAuth (Authorization Code flow), token storage/refresh
+// (encrypted at rest), and the playback reads (now-playing / queue / playlists).
+// Per-user — a Connection row keyed by userId; the client secret stays here.
 //
-// Every route requires a logged-in account. Tokens are stored in the DB as a
-// Connection row keyed by userId, so one user can never see another's Spotify
-// data. The client secret stays on the backend.
+// Public:   isConfigured, isSpotifyConnected, getValidAccessToken,
+//           getNowPlaying, getQueue, getPlaylists, toNowPlayingPayload,
+//           getProfile, getDebugInfo, beginConnect, isValidAuthState,
+//           clearAuthState, exchangeCodeAndStore, SCOPES
+// Internal: getConnection, refreshAndStore, normTrack, rawSpotifyGet, …
 // ---------------------------------------------------------------------------
 
-const router = Router();
 const PROVIDER = "spotify";
 
 const SPOTIFY_AUTH_URL = "https://accounts.spotify.com/authorize";
@@ -24,18 +25,14 @@ const CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
 const REDIRECT_URI =
   process.env.SPOTIFY_REDIRECT_URI ??
   "http://127.0.0.1:3000/api/auth/spotify/callback";
-const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN ?? "http://127.0.0.1:5173";
 
-const SCOPES =
+export const SCOPES =
   "user-read-private user-read-email user-read-currently-playing user-read-playback-state playlist-read-private";
 
 // Pending OAuth states: state -> userId (CSRF guard + per-user binding).
 const pendingStates = new Map<string, number>();
 
-function userIdOf(req: Request): number {
-  return (req as AuthedRequest).user!.userId;
-}
-function isConfigured(): boolean {
+export function isConfigured(): boolean {
   return Boolean(CLIENT_ID && CLIENT_SECRET);
 }
 function basicAuthHeader(): string {
@@ -219,17 +216,20 @@ export async function getPlaylists(userId: number, limit = 5): Promise<PlaylistE
   }));
 }
 
-// Step 1: send the user to Spotify's consent screen (must be logged in).
-router.get("/auth/spotify/login", authenticate, (req: Request, res: Response) => {
-  if (!isConfigured()) {
-    res.status(500).json({
-      error: "Spotify is not configured. Set SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET in backend/.env.",
-    });
-    return;
-  }
-  const state = crypto.randomBytes(16).toString("hex");
-  pendingStates.set(state, userIdOf(req));
+/** The JSON shape the frontend's now-playing UI consumes (one source of truth
+ *  for both the one-shot GET and the SSE stream). */
+export function toNowPlayingPayload(np: NowPlayingResult) {
+  if (np.state === "none") return { playing: false };
+  if (np.state === "unsupported") return { playing: true, supported: false, type: np.type };
+  return { playing: true, supported: true, type: "track", ...np.track };
+}
 
+// --- OAuth flow -----------------------------------------------------------
+
+/** Creates+stores a CSRF state and returns the Spotify consent URL. */
+export function beginConnect(userId: number): string {
+  const state = crypto.randomBytes(16).toString("hex");
+  pendingStates.set(state, userId);
   const params = new URLSearchParams({
     response_type: "code",
     client_id: CLIENT_ID!,
@@ -238,164 +238,65 @@ router.get("/auth/spotify/login", authenticate, (req: Request, res: Response) =>
     state,
     show_dialog: "true",
   });
-  res.redirect(`${SPOTIFY_AUTH_URL}?${params.toString()}`);
-});
+  return `${SPOTIFY_AUTH_URL}?${params.toString()}`;
+}
 
-// Step 2: Spotify redirects back (the auth cookie rides along on this nav).
-router.get("/auth/spotify/callback", authenticate, async (req: Request, res: Response) => {
-  const userId = userIdOf(req);
-  const { code, state, error } = req.query;
+/** True if `state` was issued for this user (does not consume it). */
+export function isValidAuthState(state: string, userId: number): boolean {
+  return pendingStates.get(state) === userId;
+}
 
-  if (error) {
-    res.redirect(`${FRONTEND_ORIGIN}/?spotify=denied`);
-    return;
-  }
-  if (typeof state !== "string" || pendingStates.get(state) !== userId) {
-    res.status(400).json({ error: "Invalid state parameter (possible CSRF)." });
-    return;
-  }
-  if (typeof code !== "string") {
-    res.status(400).json({ error: "Missing authorization code." });
-    return;
-  }
+export function clearAuthState(state: string): void {
   pendingStates.delete(state);
-
-  try {
-    const tokenRes = await fetch(SPOTIFY_TOKEN_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Authorization: basicAuthHeader(),
-      },
-      body: new URLSearchParams({
-        grant_type: "authorization_code",
-        code,
-        redirect_uri: REDIRECT_URI,
-      }),
-    });
-    if (!tokenRes.ok) {
-      const detail = await tokenRes.text();
-      console.error("[spotify] token exchange failed:", tokenRes.status, detail);
-      res.redirect(`${FRONTEND_ORIGIN}/?spotify=error`);
-      return;
-    }
-    const data = (await tokenRes.json()) as {
-      access_token: string;
-      refresh_token: string;
-      expires_in: number;
-      scope: string;
-    };
-    const expiresAt = new Date(Date.now() + data.expires_in * 1000);
-    const accessToken = encryptSecret(data.access_token);
-    const refreshToken = encryptSecret(data.refresh_token);
-    await prisma.connection.upsert({
-      where: { userId_provider: { userId, provider: PROVIDER } },
-      create: {
-        userId,
-        provider: PROVIDER,
-        accessToken,
-        refreshToken,
-        expiresAt,
-        scopes: data.scope ?? "",
-      },
-      update: {
-        accessToken,
-        refreshToken,
-        expiresAt,
-        scopes: data.scope ?? "",
-      },
-    });
-    res.redirect(`${FRONTEND_ORIGIN}/?spotify=connected`);
-  } catch (err) {
-    console.error("[spotify] callback error:", err);
-    res.redirect(`${FRONTEND_ORIGIN}/?spotify=error`);
-  }
-});
-
-/** Maps Spotify helper errors to HTTP responses. */
-function handleSpotifyError(err: unknown, res: Response) {
-  if (err instanceof Error && err.message === "not_connected") {
-    res.status(409).json({ error: "Connect your Spotify account first." });
-    return;
-  }
-  console.error("[spotify] error:", err);
-  res.status(502).json({ error: "Failed to reach Spotify." });
 }
 
-router.get("/spotify/me", authenticate, async (req: Request, res: Response) => {
-  try {
-    const token = await getValidAccessToken(userIdOf(req));
-    const meRes = await fetch(`${SPOTIFY_API_BASE}/me`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!meRes.ok) {
-      res.status(meRes.status).json({ error: "Spotify API request failed." });
-      return;
-    }
-    res.json(await meRes.json());
-  } catch (err) {
-    handleSpotifyError(err, res);
-  }
-});
-
-/** The JSON shape the frontend's now-playing UI consumes (one source of truth
- *  for both the one-shot GET and the SSE stream below). */
-function toNowPlayingPayload(np: NowPlayingResult) {
-  if (np.state === "none") return { playing: false };
-  if (np.state === "unsupported") return { playing: true, supported: false, type: np.type };
-  return { playing: true, supported: true, type: "track", ...np.track };
-}
-
-router.get("/spotify/now-playing", authenticate, async (req: Request, res: Response) => {
-  try {
-    res.json(toNowPlayingPayload(await getNowPlaying(userIdOf(req))));
-  } catch (err) {
-    handleSpotifyError(err, res);
-  }
-});
-
-// Live now-playing via Server-Sent Events. Spotify has no push API, so the
-// server polls per connected client and emits an event only when the track
-// changes — the browser's EventSource gets push-like updates and auto-reconnects
-// on drop. One-way (server -> client); see the README's SSE vs WebSockets note.
-router.get("/spotify/now-playing/stream", authenticate, (req: Request, res: Response) => {
-  const userId = userIdOf(req);
-
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache, no-transform");
-  res.setHeader("Connection", "keep-alive");
-  res.setHeader("X-Accel-Buffering", "no"); // don't let a proxy buffer the stream
-  res.flushHeaders();
-
-  let closed = false;
-  let lastPayload = ""; // only push when the serialized payload changes
-
-  async function tick() {
-    if (closed) return;
-    try {
-      const payload = JSON.stringify(toNowPlayingPayload(await getNowPlaying(userId)));
-      if (payload !== lastPayload) {
-        lastPayload = payload;
-        res.write(`data: ${payload}\n\n`);
-      }
-    } catch {
-      // Transient Spotify/refresh error — skip this tick and try again later.
-    }
-  }
-
-  void tick(); // push the current state immediately
-  const poll = setInterval(() => void tick(), 6000);
-  const heartbeat = setInterval(() => {
-    if (!closed) res.write(": ping\n\n"); // comment line keeps the connection warm
-  }, 25000);
-
-  req.on("close", () => {
-    closed = true;
-    clearInterval(poll);
-    clearInterval(heartbeat);
-    res.end();
+/** Exchanges an authorization code for tokens and upserts the Connection. */
+export async function exchangeCodeAndStore(userId: number, code: string): Promise<void> {
+  const tokenRes = await fetch(SPOTIFY_TOKEN_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Authorization: basicAuthHeader(),
+    },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: REDIRECT_URI,
+    }),
   });
-});
+  if (!tokenRes.ok) {
+    const detail = await tokenRes.text();
+    console.error("[spotify] token exchange failed:", tokenRes.status, detail);
+    throw new Error("token_exchange_failed");
+  }
+  const data = (await tokenRes.json()) as {
+    access_token: string;
+    refresh_token: string;
+    expires_in: number;
+    scope: string;
+  };
+  const expiresAt = new Date(Date.now() + data.expires_in * 1000);
+  const accessToken = encryptSecret(data.access_token);
+  const refreshToken = encryptSecret(data.refresh_token);
+  await prisma.connection.upsert({
+    where: { userId_provider: { userId, provider: PROVIDER } },
+    create: { userId, provider: PROVIDER, accessToken, refreshToken, expiresAt, scopes: data.scope ?? "" },
+    update: { accessToken, refreshToken, expiresAt, scopes: data.scope ?? "" },
+  });
+}
+
+// --- Profile + debug ------------------------------------------------------
+
+/** Raw Spotify /me passthrough. Returns the status so the route can mirror it. */
+export async function getProfile(
+  userId: number,
+): Promise<{ ok: boolean; status: number; data: unknown }> {
+  const token = await getValidAccessToken(userId);
+  const res = await fetch(`${SPOTIFY_API_BASE}/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return { ok: res.ok, status: res.status, data: res.ok ? await res.json() : null };
+}
 
 async function rawSpotifyGet(token: string, path: string) {
   const r = await fetch(`${SPOTIFY_API_BASE}${path}`, {
@@ -411,29 +312,18 @@ async function rawSpotifyGet(token: string, path: string) {
   return { status: r.status, statusText: r.statusText, contentType: r.headers.get("content-type"), body };
 }
 
-router.get("/spotify/debug", authenticate, async (req: Request, res: Response) => {
-  if (process.env.NODE_ENV === "production") {
-    res.sendStatus(404);
-    return;
-  }
-  try {
-    const userId = userIdOf(req);
-    const conn = await getConnection(userId);
-    const token = await getValidAccessToken(userId);
-    const [currentlyPlaying, player] = await Promise.all([
-      rawSpotifyGet(token, "/me/player/currently-playing"),
-      rawSpotifyGet(token, "/me/player"),
-    ]);
-    res.json({
-      connected: true,
-      requestedScopes: SCOPES,
-      grantedScopes: conn?.scopes ?? null,
-      currentlyPlaying,
-      player,
-    });
-  } catch (err) {
-    handleSpotifyError(err, res);
-  }
-});
-
-export default router;
+export async function getDebugInfo(userId: number) {
+  const conn = await getConnection(userId);
+  const token = await getValidAccessToken(userId);
+  const [currentlyPlaying, player] = await Promise.all([
+    rawSpotifyGet(token, "/me/player/currently-playing"),
+    rawSpotifyGet(token, "/me/player"),
+  ]);
+  return {
+    connected: true,
+    requestedScopes: SCOPES,
+    grantedScopes: conn?.scopes ?? null,
+    currentlyPlaying,
+    player,
+  };
+}

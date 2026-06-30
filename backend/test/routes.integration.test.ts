@@ -2,9 +2,8 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import express from "express";
 import type { Server } from "node:http";
 import { prisma } from "../src/db";
-import authRouter from "../src/routes/auth";
-import templatesRouter from "../src/routes/templates";
-import foldersRouter from "../src/routes/folders";
+import authRouter from "../src/modules/auth/auth.routes";
+import libraryRouter from "../src/modules/library/library.routes";
 
 // Integration tests: real Express routers against the real DB (dev.db). They
 // cover our #1 "most damage" area — authentication + per-user ownership.
@@ -54,8 +53,7 @@ beforeAll(async () => {
   const app = express();
   app.use(express.json());
   app.use("/api", authRouter);
-  app.use("/api", templatesRouter);
-  app.use("/api", foldersRouter);
+  app.use("/api", libraryRouter);
   await new Promise<void>((resolve) => {
     server = app.listen(0, "127.0.0.1", () => resolve());
   });

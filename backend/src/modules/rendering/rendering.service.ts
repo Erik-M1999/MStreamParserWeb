@@ -1,20 +1,21 @@
-import { Router, type Request, type Response } from "express";
 import {
   getNowPlaying,
   getQueue,
   getPlaylists,
   getValidAccessToken,
-} from "./spotify.js";
-import { authenticate, type AuthedRequest } from "../middleware/authenticate.js";
-import { fillTemplate, type TemplateFill } from "../svgTemplate.js";
+} from "../spotify/spotify.service.js";
+import { fillTemplate, type TemplateFill } from "../../svgTemplate.js";
+import { HttpError } from "../../shared/errors.js";
 
 // ---------------------------------------------------------------------------
-// ImmersiveMusicDisplay — render endpoint.
-// Takes an uploaded SVG template + a mode, fills it with the relevant Spotify
-// data, and returns the filled SVG. Modes: current-song, queue, playlist.
+// Rendering context: fills an uploaded SVG template with the user's live Spotify
+// data and returns the filled SVG. Stateless — owns no tables. This is the one
+// context that calls another: it asks the Spotify service for normalized track
+// data (never touching the Connection row / token directly).
+//
+// Public:   render
+// Internal: buildFill, fetchCoverDataUri, ConflictError
 // ---------------------------------------------------------------------------
-
-const router = Router();
 
 /** Fetch the cover image and inline it as a data URI (portable, self-contained). */
 async function fetchCoverDataUri(url: string): Promise<string | null> {
@@ -32,6 +33,9 @@ async function fetchCoverDataUri(url: string): Promise<string | null> {
 interface ConflictError {
   status: 409;
   message: string;
+}
+function isConflict(e: unknown): e is ConflictError {
+  return typeof e === "object" && e !== null && (e as ConflictError).status === 409;
 }
 
 /** Builds the slot fill for a mode. Throws a ConflictError when there's no
@@ -100,27 +104,17 @@ async function buildFill(
   return { text, imageUrls };
 }
 
-function isConflict(e: unknown): e is ConflictError {
-  return typeof e === "object" && e !== null && (e as ConflictError).status === 409;
-}
-
-router.post("/immersive/render", authenticate, async (req: Request, res: Response) => {
-  const userId = (req as AuthedRequest).user!.userId;
-  const template = typeof req.body === "string" ? req.body : "";
-  if (!template.trim()) {
-    res.status(400).json({ error: "No SVG template was provided." });
-    return;
-  }
-
-  const mode =
-    typeof req.query.mode === "string" ? req.query.mode : "current-song";
+/** Fills the template with the user's current Spotify data for the given mode.
+ *  Throws HttpError: 400 (bad/empty template), 409 (not connected / nothing to
+ *  render), 502 (Spotify unreachable). */
+export async function render(userId: number, svg: string, mode: string): Promise<string> {
+  if (!svg.trim()) throw new HttpError(400, "No SVG template was provided.");
 
   // Must have a Spotify connection.
   try {
     await getValidAccessToken(userId);
   } catch {
-    res.status(409).json({ error: "Connect your Spotify account first." });
-    return;
+    throw new HttpError(409, "Connect your Spotify account first.");
   }
 
   // Gather the mode's data from Spotify.
@@ -129,13 +123,9 @@ router.post("/immersive/render", authenticate, async (req: Request, res: Respons
   try {
     ({ text, imageUrls } = await buildFill(mode, userId));
   } catch (err) {
-    if (isConflict(err)) {
-      res.status(409).json({ error: err.message });
-      return;
-    }
-    console.error("[immersive] spotify error:", err);
-    res.status(502).json({ error: "Failed to reach Spotify." });
-    return;
+    if (isConflict(err)) throw new HttpError(409, err.message);
+    console.error("[rendering] spotify error:", err);
+    throw new HttpError(502, "Failed to reach Spotify.");
   }
 
   // Inline every cover as a data URI (in parallel).
@@ -149,13 +139,11 @@ router.post("/immersive/render", authenticate, async (req: Request, res: Respons
   // Fill the template. A bad/unsupported template yields a clear 400.
   try {
     const fill: TemplateFill = { text, images };
-    res.type("image/svg+xml").send(fillTemplate(template, fill));
+    return fillTemplate(svg, fill);
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Could not process the SVG template.";
-    console.error("[immersive] fill error:", message);
-    res.status(400).json({ error: message });
+    console.error("[rendering] fill error:", message);
+    throw new HttpError(400, message);
   }
-});
-
-export default router;
+}
