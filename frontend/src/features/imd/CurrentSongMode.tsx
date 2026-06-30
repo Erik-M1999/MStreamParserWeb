@@ -7,16 +7,16 @@ import {
   type ChangeEvent,
   type DragEvent,
 } from "react";
-import { BACKEND_URL } from "@/config";
-import { focusSvgToContent, getSvgDimensions } from "@/lib/imd/focusSvg";
-import { downloadBlob, svgStringToBlob, svgToPngBlob } from "@/lib/imd/download";
+import { BACKEND_URL } from "@/shared/config";
+import { focusSvgToContent, getSvgDimensions } from "@/features/imd/lib/focusSvg";
+import { downloadBlob, svgStringToBlob, svgToPngBlob } from "@/features/imd/lib/download";
 import {
   measureText,
   applyTextOffset,
   type TextMetrics,
-} from "@/lib/imd/textOffset";
-import { IMD_DND_MIME, type ImdDragPayload } from "@/lib/imd/dragPayload";
-import SvgTagEditor from "@/components/imd/SvgTagEditor";
+} from "@/features/imd/lib/textOffset";
+import { IMD_DND_MIME, type ImdDragPayload } from "@/features/imd/lib/dragPayload";
+import SvgTagEditor from "@/features/imd/SvgTagEditor";
 
 interface NowPlaying {
   playing: boolean;

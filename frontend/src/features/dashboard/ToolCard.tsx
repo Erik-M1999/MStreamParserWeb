@@ -1,4 +1,4 @@
-import type { Tool } from "@/types";
+import type { Tool } from "@/shared/types";
 
 export default function ToolCard({
   tool,

@@ -1,13 +1,7 @@
-// Client-side auth helpers. The JWT lives in an HttpOnly cookie, so JS can't
-// read it — we always send credentials and ask the backend who we are.
+// Generic browser fetch helpers against the backend. The JWT lives in an
+// HttpOnly cookie, so JS can't read it — we always send credentials.
 
-import { BACKEND_URL } from "@/config";
-
-export interface Me {
-  id: number;
-  username: string;
-  email: string;
-}
+import { BACKEND_URL } from "@/shared/config";
 
 /** fetch() against the backend with the auth cookie always included. */
 export function authFetch(path: string, opts: RequestInit = {}): Promise<Response> {
@@ -26,21 +20,4 @@ export async function authJson<T>(path: string, opts: RequestInit = {}): Promise
   }
   // 204 No Content -> nothing to parse
   return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
-}
-
-export async function getMe(): Promise<Me | null> {
-  try {
-    const res = await authFetch("/api/auth/me");
-    return res.ok ? ((await res.json()) as Me) : null;
-  } catch {
-    return null;
-  }
-}
-
-export async function logout(): Promise<void> {
-  try {
-    await authFetch("/api/auth/logout", { method: "POST" });
-  } catch {
-    /* ignore */
-  }
 }

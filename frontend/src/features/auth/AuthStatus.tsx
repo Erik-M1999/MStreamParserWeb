@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { getMe, logout, type Me } from "@/lib/auth";
+import { getMe, logout, type Me } from "@/features/auth/auth.api";
 
 // Top-bar auth widget: shows the logged-in user + logout, or a Log in link.
 export default function AuthStatus() {

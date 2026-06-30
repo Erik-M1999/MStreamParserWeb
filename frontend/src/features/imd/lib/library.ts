@@ -2,7 +2,7 @@
 // in the backend (id-based, parentId / folderId); this module talks to the CRUD
 // routes and converts the id-tree into the path-based view the Library renders.
 
-import { authJson } from "@/lib/auth";
+import { authJson } from "@/shared/lib/authFetch";
 
 export interface ApiFolder {
   id: number;

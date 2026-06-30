@@ -1,6 +1,6 @@
-import { BACKEND_URL } from "@/config";
-import AuthStatus from "@/components/AuthStatus";
-import type { ApiConnection } from "@/types";
+import { BACKEND_URL } from "@/shared/config";
+import AuthStatus from "@/features/auth/AuthStatus";
+import type { ApiConnection } from "@/shared/types";
 
 // Maps an API id to the backend route that starts its OAuth login.
 // Only Spotify exists for now; add more entries as we support more APIs.

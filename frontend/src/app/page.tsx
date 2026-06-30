@@ -1,8 +1,8 @@
 import { cookies } from "next/headers";
-import TopBar from "@/components/TopBar";
-import ToolsSection from "@/components/ToolsSection";
-import { BACKEND_URL } from "@/config";
-import type { ApiConnection, SpotifyProfile, Tool } from "@/types";
+import TopBar from "@/features/dashboard/TopBar";
+import ToolsSection from "@/features/dashboard/ToolsSection";
+import { BACKEND_URL } from "@/shared/config";
+import type { ApiConnection, SpotifyProfile, Tool } from "@/shared/types";
 
 // Server-side fetch that forwards the caller's auth cookie to the backend.
 function backendGet(path: string, cookie: string): Promise<Response> {

@@ -3,9 +3,9 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { BACKEND_URL } from "@/config";
+import { BACKEND_URL } from "@/shared/config";
 
-export default function LoginPage() {
+export default function LoginForm() {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");

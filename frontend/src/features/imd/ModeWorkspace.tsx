@@ -7,11 +7,11 @@ import {
   type ChangeEvent,
   type DragEvent,
 } from "react";
-import { BACKEND_URL } from "@/config";
-import { focusSvgToContent, getSvgDimensions } from "@/lib/imd/focusSvg";
-import { downloadBlob, svgStringToBlob, svgToPngBlob } from "@/lib/imd/download";
-import { IMD_DND_MIME, type ImdDragPayload } from "@/lib/imd/dragPayload";
-import SvgTagEditor from "@/components/imd/SvgTagEditor";
+import { BACKEND_URL } from "@/shared/config";
+import { focusSvgToContent, getSvgDimensions } from "@/features/imd/lib/focusSvg";
+import { downloadBlob, svgStringToBlob, svgToPngBlob } from "@/features/imd/lib/download";
+import { IMD_DND_MIME, type ImdDragPayload } from "@/features/imd/lib/dragPayload";
+import SvgTagEditor from "@/features/imd/SvgTagEditor";
 
 export interface PendingTemplate {
   token: number;

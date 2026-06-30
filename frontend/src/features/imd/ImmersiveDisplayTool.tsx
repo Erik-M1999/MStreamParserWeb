@@ -6,9 +6,9 @@ import PlaylistMode from "./PlaylistMode";
 import QueueMode from "./QueueMode";
 import TemplateLibrary from "./TemplateLibrary";
 import { type PendingTemplate } from "./ModeWorkspace";
-import type { ImdDragPayload } from "@/lib/imd/dragPayload";
-import * as lib from "@/lib/imd/library";
-import { type ApiFolder, type ApiTemplate, buildPaths } from "@/lib/imd/library";
+import type { ImdDragPayload } from "@/features/imd/lib/dragPayload";
+import * as lib from "@/features/imd/lib/library";
+import { type ApiFolder, type ApiTemplate, buildPaths } from "@/features/imd/lib/library";
 
 type Mode = "current-song" | "playlist" | "queue";
 

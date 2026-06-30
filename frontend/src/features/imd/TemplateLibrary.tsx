@@ -7,8 +7,8 @@ import {
   type DragEvent,
   type MouseEvent,
 } from "react";
-import { BACKEND_URL } from "@/config";
-import { IMD_DND_MIME, type ImdDragPayload } from "@/lib/imd/dragPayload";
+import { BACKEND_URL } from "@/shared/config";
+import { IMD_DND_MIME, type ImdDragPayload } from "@/features/imd/lib/dragPayload";
 
 interface DebugTemplate {
   id: string;

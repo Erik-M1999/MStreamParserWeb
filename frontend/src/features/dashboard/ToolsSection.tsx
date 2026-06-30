@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import ToolCard from "@/components/ToolCard";
-import Modal from "@/components/Modal";
-import ImmersiveDisplayTool from "@/components/imd/ImmersiveDisplayTool";
-import type { Tool } from "@/types";
+import ToolCard from "@/features/dashboard/ToolCard";
+import Modal from "@/shared/components/Modal";
+import ImmersiveDisplayTool from "@/features/imd/ImmersiveDisplayTool";
+import type { Tool } from "@/shared/types";
 
 // Renders the tool grid and opens functional tools in a floating modal, so the
 // dashboard (and its top bar) stays in place. For now only "immersive-display"

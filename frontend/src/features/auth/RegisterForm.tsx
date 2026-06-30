@@ -2,9 +2,9 @@
 
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { BACKEND_URL } from "@/config";
+import { BACKEND_URL } from "@/shared/config";
 
-export default function RegisterPage() {
+export default function RegisterForm() {
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { analyzeSvg, applyTags, suggestSlot } from "@/lib/imd/tagEditor";
+import { analyzeSvg, applyTags, suggestSlot } from "@/features/imd/lib/tagEditor";
 
 export default function SvgTagEditor({
   svg,
