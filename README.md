@@ -25,7 +25,8 @@ Class progress and report (DE):
 
 01)
 
-02) "Braucht eure App SSR/Next.js – oder wäre Vite eigentlich besser geeignet? Begründet anhand von SEO und Interaktivität."
+02) 
+"Braucht eure App SSR/Next.js – oder wäre Vite eigentlich besser geeignet? Begründet anhand von SEO und Interaktivität."
 
 Vite wäre grundsätzlich besser geeignet, da der Inhalt der Webapp hauptsächlich erst nach API Aktionen entsteht und der größere Anteil hinter Login versteckt ist. Daher ist der SEO Anteil nahezu irrelevant.
 
@@ -52,30 +53,33 @@ DELETE /api/templates/:id   - Template löschen, 204 als Antwort
 Bonus:
 Das gleiche CRUD kann man für die Resource Folder anlegen, da sie die gleicher Beziehung zum User hat und ebenfalls optional die Templates verschachtelt.
 
-04) Datenschema der Datenbank:
-users       connection      folders     templates           api_keys
------       ----------      -------     ---------           --------
-id          id              id          id                  id
-email       userId          userId      userId              userId
-username    provider        name        name                name
-password    accessToken     parentId    svg                 KeyHash
-createAt    refreshToken    createdAt   mode                createdAt
-            expiresAt                   folderId            lastUsedAt
-            scopes                      created/updatedAt
+04) 
+Datenschema der Datenbank:
+
+| users | connection | folders | templates | api_keys |
+|---|---|---|---|---|
+| id | id | id | id | id |
+| email | userId | userId | userId | userId |
+| username | provider | name | name | name |
+| password | accessToken | parentId | svg | KeyHash |
+| createdAt | refreshToken | createdAt | mode | createdAt |
+|  | expiresAt |  | folderId | lastUsedAt |
+|  | scopes |  | created/updatedAt |  |
 
 Beziehungen:
 Von Users aus, 1:n. Gleiche gilt für Folders -> Mehrere Resourcen an einem gebunden
 Templates sind immer "unique" daher n:1
 
 Nicht leere Felder:
-users       connection      folders     templates   api_keys
------       ----------      -------     ---------   --------
-email       userId          userId      userId      userId
-username    provider        name        name        KeyHash
-password    accessToken                 svg
-            refreshToken
-            expiresAt
-            scopes
+
+| users | connection | folders | templates | api_keys |
+|---|---|---|---|---|
+| email | userId | userId | userId | userId |
+| username | provider | name | name | KeyHash |
+| password | accessToken |  | svg |  |
+|  | refreshToken |  |  |  |
+|  | expiresAt |  |  |  |
+|  | scopes |  |  |  |
 
 Architekturentscheidung:
 Daten die in der Datenbank liegne müssen sind auf jeden Fall die Users, Connection, Template, API Keys. Die werden für die Queries gebraucht.
