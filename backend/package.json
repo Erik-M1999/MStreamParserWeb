@@ -9,8 +9,12 @@
     "watch": "tsc --watch",
     "dev": "node --watch --env-file-if-exists=.env dist/server.js",
     "seed": "tsc && node --env-file-if-exists=.env dist/scripts/seed.js",
+    "db:reset": "tsc && prisma migrate reset --force",
     "test": "vitest run",
     "test:watch": "vitest"
+  },
+  "prisma": {
+    "seed": "node --env-file-if-exists=.env dist/scripts/seed.js"
   },
   "dependencies": {
     "@prisma/client": "6.19.3",
