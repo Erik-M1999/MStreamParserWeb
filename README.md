@@ -181,6 +181,38 @@ Conclusion: the codebase is already clean on cross-domain *data* access; the Ses
 
 Kontexte die miteinander Kommunizieren: `Rendering -> Spotify`: Zum Rendern eines Template fragt Rendering bei Spotify zu einem `userId` die nötigen Daten für den aktiven Modus ab. Zum Beispiel Current Song benötige es nur `artist, title, album, coverUrl`.
 
+**Modul-Schnittstellen**
+
+```
+auth.service.ts
+  öffentlich:   register(), login(), TOKEN_TTL_SECONDS
+
+
+spotify.service.ts
+  öffentlich:   isSpotifyConnected(), getValidAccessToken(), getNowPlaying(),
+            getQueue(), getPlaylists(), toNowPlayingPayload(), getProfile(),
+            getDebugInfo(), beginConnect(), isValidAuthState(),
+            clearAuthState(), exchangeCodeAndStore(), isConfigured(), SCOPES
+  intern: getConnection(), refreshAndStore(), basicAuthHeader(),
+            normTrack(), rawSpotifyGet(), pendingStates
+
+
+library.service.ts
+  öffentlich:   listTemplates(), getTemplate(), createTemplate(), updateTemplate(),
+            deleteTemplate(), listFolders(), getFolder(), listFolderTemplates(),
+            createFolder(), updateFolder(), deleteFolder()
+  intern: parseTemplateBody(), parseFolderName(), resolveFolder(), resolveParent()
+
+
+rendering.service.ts
+  öffentlich:   render()
+  intern: buildFill(), fetchCoverDataUri(), isConflict()
+```
+
+> "Welches Modul wäre am einfachsten zu extrahieren, wenn man es irgendwann als eigenen Service deployen müsste?"
+
+Das `Rendering`, da es komplett "stateless" ist. Es hat keinen Zugriff auf die Datenbank oder andere Services. Es empfängt nur Daten von Externe APIs (Spotify) und `fillTemplate()` und verarbeitet diese.
+
 ### 10)
 
 ### 11)
