@@ -5,3 +5,8 @@ build/
 *.log
 .env*
 next-env.d.ts
+
+# Cypress run artifacts
+cypress/videos/
+cypress/screenshots/
+cypress/downloads/

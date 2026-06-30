@@ -52,6 +52,7 @@ export default function LoginPage() {
             type="text"
             required
             autoComplete="username"
+            data-cy="login-username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             className="mt-1 w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-neutral-500"
@@ -64,6 +65,7 @@ export default function LoginPage() {
             type="password"
             required
             autoComplete="current-password"
+            data-cy="login-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="mt-1 w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-neutral-500"
@@ -71,7 +73,10 @@ export default function LoginPage() {
         </label>
 
         {error && (
-          <p className="rounded-md border border-red-900/60 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          <p
+            data-cy="login-error"
+            className="rounded-md border border-red-900/60 bg-red-500/10 px-3 py-2 text-sm text-red-300"
+          >
             {error}
           </p>
         )}
@@ -79,6 +84,7 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={loading}
+          data-cy="login-submit"
           className="w-full rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-500 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {loading ? "Logging in…" : "Log in"}

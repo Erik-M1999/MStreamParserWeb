@@ -36,6 +36,7 @@ export default function ToolCard({
       <button
         type="button"
         onClick={onOpen}
+        data-cy={`tool-${tool.id}`}
         className={`${baseClasses} transition-colors hover:border-neutral-600 hover:bg-neutral-900`}
       >
         {inner}
