@@ -76,6 +76,15 @@ export async function getTemplate(userId: number, id: number) {
   return t;
 }
 
+/** Lightweight listing (no SVG body) — e.g. for the external API's picker. */
+export function listTemplateSummaries(userId: number) {
+  return prisma.template.findMany({
+    where: { userId },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, mode: true, folderId: true },
+  });
+}
+
 export async function createTemplate(userId: number, body: Body) {
   const { name, svg, mode } = parseTemplateBody(body);
   const folderId = await resolveFolder(userId, body.folderId);

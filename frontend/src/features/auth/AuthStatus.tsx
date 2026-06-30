@@ -33,7 +33,14 @@ export default function AuthStatus() {
 
   return (
     <span className="ml-2 flex items-center gap-2 text-sm">
-      <span data-cy="user-name" className="text-neutral-300">{me.username}</span>
+      <Link
+        href="/account"
+        data-cy="user-name"
+        className="text-neutral-300 hover:text-neutral-100 hover:underline"
+        title="Account & API keys"
+      >
+        {me.username}
+      </Link>
       <button
         type="button"
         data-cy="logout-btn"

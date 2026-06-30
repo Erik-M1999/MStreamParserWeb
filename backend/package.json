@@ -20,6 +20,7 @@
     "@prisma/client": "6.19.3",
     "@react-email/components": "1.0.12",
     "@react-email/render": "2.0.9",
+    "@resvg/resvg-js": "2.6.2",
     "@xmldom/xmldom": "0.9.10",
     "bcrypt": "6.0.0",
     "express": "5.2.1",

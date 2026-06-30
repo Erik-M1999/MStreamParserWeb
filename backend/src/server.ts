@@ -5,6 +5,8 @@ import immersiveRouter from "./modules/rendering/rendering.routes.js";
 import authRouter from "./modules/auth/auth.routes.js";
 import { optionalUser } from "./middleware/authenticate.js";
 import libraryRouter from "./modules/library/library.routes.js";
+import apiKeysRouter from "./modules/apikeys/apikeys.routes.js";
+import externalRouter from "./modules/external/external.routes.js";
 
 // ---------------------------------------------------------------------------
 // MStreamParserWeb — Express backend (port 3000)
@@ -37,7 +39,7 @@ app.use((req: Request, res: Response, next) => {
     res.setHeader("Access-Control-Allow-Credentials", "true");
   }
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   if (req.method === "OPTIONS") {
     res.sendStatus(204);
     return;
@@ -116,6 +118,10 @@ app.use("/api", authRouter);
 
 // Library context: demo templates (public) + per-user templates/folders (auth).
 app.use("/api", libraryRouter);
+
+// API keys management (cookie auth) + the external API for tools (/api/v1, key auth).
+app.use("/api", apiKeysRouter);
+app.use("/api", externalRouter);
 
 app.listen(PORT, () => {
   console.log(`[backend] listening on http://127.0.0.1:${PORT}`);

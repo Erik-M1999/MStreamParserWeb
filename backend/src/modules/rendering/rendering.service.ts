@@ -1,3 +1,4 @@
+import { Resvg } from "@resvg/resvg-js";
 import {
   getNowPlaying,
   getQueue,
@@ -6,6 +7,19 @@ import {
 } from "../spotify/spotify.service.js";
 import { fillTemplate, type TemplateFill } from "../../svgTemplate.js";
 import { HttpError } from "../../shared/errors.js";
+
+const MAX_PNG_WIDTH = 10000; // guard against absurd output sizes
+
+/** Rasterizes a (filled) SVG to a PNG Buffer — the server-side replacement for
+ *  the old Inkscape step. Optional output width in px (height keeps aspect),
+ *  else the SVG's natural size. Covers are inlined data URIs, so no network. */
+export function svgToPng(svg: string, width?: number): Buffer {
+  const fitTo: { mode: "width"; value: number } | { mode: "original" } =
+    width && Number.isInteger(width) && width > 0
+      ? { mode: "width", value: Math.min(width, MAX_PNG_WIDTH) }
+      : { mode: "original" };
+  return new Resvg(svg, { fitTo }).render().asPng();
+}
 
 // ---------------------------------------------------------------------------
 // Rendering context: fills an uploaded SVG template with the user's live Spotify
