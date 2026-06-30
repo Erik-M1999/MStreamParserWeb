@@ -111,6 +111,18 @@ Eine Signatur nachzubauen ist ebenfalls unmöglich, der JWT_SECRET liegt nur im 
 
 ### 06)
 
+**Test-Pyramide**
+| Ebene | Was testen wir bei uns? | Tool |
+|---|---|---|
+| Unit | Reine Frontend Logik ohne DB testen: Ordnerstruktur durch `buildPaths()` validieren, SVG Platzhalter `fillTemplate()` testen, Passwort Validierung und zuletzt `encryptSecret`/`decryptSecret` Round-Trip testen.  | Vitest |
+| Integration | Routing und Queries testen: Anlegen von Templates `POST /api/templates`, Löschen von Ornder löscht auch alle Unterordner und Inhalte, `authenticate` soll ungültige Tokens ablehnen, Ownership-Scoping im Sinne von Inhalt von andere User ist nicht zugänglich | Vitest |
+| E2E | Login Flow: Login -> Spotify soll verbunden sein -> ImmersiveMusicDisplay -> Ordner A anlegen -> Seite neuladen -> Ordner A soll da sein -> Datei von _debug in einen neuen Unterordner B in A kopieren und umbennen -> Seite neuladen -> Ordner A und Unterordner B mit neu benannter SVG Datei existieren | Cypress |
+
+**Was würde den meisten Schaden anrichten, wenn es Änderung kaputt macht?**
+
+1. **Template/Ordner CRUD Persistenz**: Bricht die ganze Logik wie zum Beispiel Speichern, Verschieben oder Löschen, dann kann es dazu führen, dass der Benutzer nach neuladen der Seiten die ganze Bibliothek verliert.
+2. **Auth und Ownership**: Das Scoping von `authenticate` + `userId` muss richtig sitzen, sonst kann es dazu führen, dass die gespeicher Elemente sowie Tokens für andere User sichtbar werden. Gleiche Lücke wie von Session 05 Security.
+
 ### 07)
 
 ### 08)
