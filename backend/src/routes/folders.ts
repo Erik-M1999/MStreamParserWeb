@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { prisma } from "../db.js";
-import { authenticate, type AuthedRequest } from "./auth.js";
+import { authenticate, type AuthedRequest } from "../middleware/authenticate.js";
 
 // Per-user folder CRUD (self-nesting via parentId). Scoped to the user.
 

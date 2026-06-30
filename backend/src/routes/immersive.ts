@@ -5,6 +5,7 @@ import {
   getPlaylists,
   getValidAccessToken,
 } from "./spotify.js";
+import { authenticate, type AuthedRequest } from "../middleware/authenticate.js";
 import { fillTemplate, type TemplateFill } from "../svgTemplate.js";
 
 // ---------------------------------------------------------------------------
@@ -35,7 +36,10 @@ interface ConflictError {
 
 /** Builds the slot fill for a mode. Throws a ConflictError when there's no
  *  suitable Spotify data (e.g. nothing playing). */
-async function buildFill(mode: string): Promise<{
+async function buildFill(
+  mode: string,
+  userId: number,
+): Promise<{
   text: Record<string, string>;
   imageUrls: Record<string, string | null>;
 }> {
@@ -43,7 +47,7 @@ async function buildFill(mode: string): Promise<{
   const imageUrls: Record<string, string | null> = {};
 
   if (mode === "current-song") {
-    const np = await getNowPlaying();
+    const np = await getNowPlaying(userId);
     if (np.state === "none") {
       throw {
         status: 409,
@@ -62,7 +66,7 @@ async function buildFill(mode: string): Promise<{
     text.title = np.track.title;
     imageUrls.cover = np.track.coverUrl;
   } else if (mode === "queue") {
-    const q = await getQueue();
+    const q = await getQueue(userId);
     if (!q.current) {
       throw {
         status: 409,
@@ -78,7 +82,7 @@ async function buildFill(mode: string): Promise<{
       imageUrls[i === 0 ? "current_cover" : `cover${suffix}`] = e.coverUrl;
     }
   } else if (mode === "playlist") {
-    const pls = await getPlaylists(5);
+    const pls = await getPlaylists(userId, 5);
     if (pls.length === 0) {
       throw { status: 409, message: "No playlists found on your account." } as ConflictError;
     }
@@ -100,7 +104,8 @@ function isConflict(e: unknown): e is ConflictError {
   return typeof e === "object" && e !== null && (e as ConflictError).status === 409;
 }
 
-router.post("/immersive/render", async (req: Request, res: Response) => {
+router.post("/immersive/render", authenticate, async (req: Request, res: Response) => {
+  const userId = (req as AuthedRequest).user!.userId;
   const template = typeof req.body === "string" ? req.body : "";
   if (!template.trim()) {
     res.status(400).json({ error: "No SVG template was provided." });
@@ -110,11 +115,11 @@ router.post("/immersive/render", async (req: Request, res: Response) => {
   const mode =
     typeof req.query.mode === "string" ? req.query.mode : "current-song";
 
-  // Must be connected to Spotify.
+  // Must have a Spotify connection.
   try {
-    await getValidAccessToken();
+    await getValidAccessToken(userId);
   } catch {
-    res.status(401).json({ error: "Not connected to Spotify." });
+    res.status(409).json({ error: "Connect your Spotify account first." });
     return;
   }
 
@@ -122,7 +127,7 @@ router.post("/immersive/render", async (req: Request, res: Response) => {
   let text: Record<string, string>;
   let imageUrls: Record<string, string | null>;
   try {
-    ({ text, imageUrls } = await buildFill(mode));
+    ({ text, imageUrls } = await buildFill(mode, userId));
   } catch (err) {
     if (isConflict(err)) {
       res.status(409).json({ error: err.message });

@@ -3,6 +3,7 @@ import spotifyRouter, { isSpotifyConnected } from "./routes/spotify.js";
 import immersiveRouter from "./routes/immersive.js";
 import sampleTemplatesRouter from "./routes/sampleTemplates.js";
 import authRouter from "./routes/auth.js";
+import { optionalUser } from "./middleware/authenticate.js";
 import templatesRouter from "./routes/templates.js";
 import foldersRouter from "./routes/folders.js";
 
@@ -36,7 +37,7 @@ app.use((req: Request, res: Response, next) => {
     // Allow the HttpOnly auth cookie on cross-origin (port-differing) calls.
     res.setHeader("Access-Control-Allow-Credentials", "true");
   }
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") {
     res.sendStatus(204);
@@ -85,10 +86,6 @@ const tools: Tool[] = [
   },
 ];
 
-// Built fresh per request so the Spotify status reflects the current token state.
-function getConnections(): ApiConnection[] {
-  return [{ id: "spotify", name: "Spotify", connected: isSpotifyConnected() }];
-}
 
 // --- Routes ----------------------------------------------------------------
 
@@ -102,9 +99,11 @@ app.get("/api/tools", (_req: Request, res: Response) => {
   res.json(tools);
 });
 
-// The available APIs and whether they are connected this session.
-app.get("/api/connections", (_req: Request, res: Response) => {
-  res.json(getConnections());
+// The available APIs and whether they're connected — per logged-in user.
+app.get("/api/connections", async (req: Request, res: Response) => {
+  const user = optionalUser(req);
+  const connected = user ? await isSpotifyConnected(user.userId) : false;
+  res.json([{ id: "spotify", name: "Spotify", connected }]);
 });
 
 // Spotify OAuth + test-fetch routes (mounted under /api).

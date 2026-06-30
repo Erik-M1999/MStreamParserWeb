@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { prisma } from "../db.js";
-import { authenticate, type AuthedRequest } from "./auth.js";
+import { authenticate, type AuthedRequest } from "../middleware/authenticate.js";
 
 // Per-user template CRUD. Every query is scoped to the authenticated user, so
 // nobody can read or modify another user's templates.

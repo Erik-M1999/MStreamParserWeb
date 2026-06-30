@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { BACKEND_URL } from "@/config";
+import AuthStatus from "@/components/AuthStatus";
 import type { ApiConnection } from "@/types";
 
 // Maps an API id to the backend route that starts its OAuth login.
@@ -10,7 +10,13 @@ const LOGIN_URLS: Record<string, string> = {
 
 // Presentational, no interactivity -> stays a Server Component (no "use client").
 // Clicking "Connect" is a plain link the browser navigates to (starts OAuth).
-export default function TopBar({ connections }: { connections: ApiConnection[] }) {
+export default function TopBar({
+  connections,
+  loggedIn,
+}: {
+  connections: ApiConnection[];
+  loggedIn: boolean;
+}) {
   return (
     <header className="flex items-center justify-between border-b border-neutral-800 px-6 py-4">
       <span className="font-semibold tracking-tight">MStreamParserWeb</span>
@@ -33,11 +39,12 @@ export default function TopBar({ connections }: { connections: ApiConnection[] }
             );
           }
 
-          const loginUrl = LOGIN_URLS[api.id];
+          // Connecting requires an account, so send anon users to /login.
+          const href = loggedIn ? LOGIN_URLS[api.id] : "/login";
           return (
             <a
               key={api.id}
-              href={loginUrl}
+              href={href}
               className="flex items-center gap-1.5 rounded-full border border-neutral-800 px-3 py-1 text-sm transition-colors hover:border-neutral-600 hover:bg-neutral-900"
             >
               <span aria-hidden className="h-2 w-2 rounded-full bg-neutral-600" />
@@ -47,12 +54,7 @@ export default function TopBar({ connections }: { connections: ApiConnection[] }
           );
         })}
 
-        <Link
-          href="/login"
-          className="ml-2 rounded-full border border-neutral-700 px-3 py-1 text-sm text-neutral-200 transition-colors hover:border-neutral-500"
-        >
-          Log in
-        </Link>
+        <AuthStatus />
       </nav>
     </header>
   );

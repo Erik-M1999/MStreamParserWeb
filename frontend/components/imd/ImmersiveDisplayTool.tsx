@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import CurrentSongMode from "./CurrentSongMode";
 import PlaylistMode from "./PlaylistMode";
 import QueueMode from "./QueueMode";
 import TemplateLibrary from "./TemplateLibrary";
 import { type PendingTemplate } from "./ModeWorkspace";
 import type { ImdDragPayload } from "@/lib/imd/dragPayload";
+import * as lib from "@/lib/imd/library";
+import { type ApiFolder, type ApiTemplate, buildPaths } from "@/lib/imd/library";
 
 type Mode = "current-song" | "playlist" | "queue";
 
@@ -16,117 +18,217 @@ const TABS: { id: Mode; label: string }[] = [
   { id: "queue", label: "Queue" },
 ];
 
-export interface UserTemplate {
-  id: string;
-  name: string;
-  svg: string;
-  folder: string; // "" = root
-  modes: string[];
-}
+// Path helpers (the Library keys folders by their "A/B/C" path).
+const lastSegment = (p: string) => p.slice(p.lastIndexOf("/") + 1);
+const parentPath = (p: string) => {
+  const i = p.lastIndexOf("/");
+  return i === -1 ? "" : p.slice(0, i);
+};
 
 export default function ImmersiveDisplayTool({
   connected,
+  loggedIn,
 }: {
   connected: boolean;
+  loggedIn: boolean;
 }) {
   const [mode, setMode] = useState<Mode>("current-song");
   const [pending, setPending] = useState<PendingTemplate | null>(null);
 
-  // Client-side library state (ephemeral until users + DB exist).
-  const [userFolders, setUserFolders] = useState<string[]>([]);
-  const [userTemplates, setUserTemplates] = useState<UserTemplate[]>([]);
+  // Per-user library, loaded from the backend (id-based; see lib/imd/library).
+  const [folders, setFolders] = useState<ApiFolder[]>([]);
+  const [templates, setTemplates] = useState<ApiTemplate[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const [justSavedId, setJustSavedId] = useState<string | null>(null);
   const [justCreatedFolder, setJustCreatedFolder] = useState<string | null>(null);
 
+  const reload = useCallback(async () => {
+    const [f, t] = await Promise.all([lib.loadFolders(), lib.loadTemplates()]);
+    setFolders(f);
+    setTemplates(t);
+  }, []);
+
+  // Load the user's library once logged in (anon only ever sees _debug).
+  useEffect(() => {
+    if (!loggedIn) {
+      setFolders([]);
+      setTemplates([]);
+      return;
+    }
+    reload().catch(() => setError("Couldn't load your library."));
+  }, [loggedIn, reload]);
+
+  // Derive the path-based view the Library component consumes.
+  const { pathToId, idToPath, paths } = useMemo(() => buildPaths(folders), [folders]);
+  const userFolders = paths;
+  const userTemplates = useMemo(
+    () =>
+      templates.map((t) => ({
+        id: String(t.id),
+        name: t.name,
+        svg: t.svg,
+        folder: t.folderId != null ? (idToPath.get(t.folderId) ?? "") : "",
+        modes: [t.mode],
+      })),
+    [templates, idToPath],
+  );
+
+  // Mutations require a login; a logged-out attempt bounces to /login.
+  function ensureAuth(): boolean {
+    if (loggedIn) return true;
+    window.location.href = "/login";
+    return false;
+  }
+  // Runs an async mutation, then refreshes state; surfaces a short error.
+  async function run(fn: () => Promise<void>) {
+    if (!ensureAuth()) return;
+    try {
+      await fn();
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Something went wrong.");
+    }
+  }
+
+  const folderIdOf = (path: string): number | null =>
+    path ? (pathToId.get(path) ?? null) : null;
+
   function newFolder(parent: string | null) {
-    const makePath = (n: string) => (parent ? `${parent}/${n}` : n);
-    let name = "New folder";
-    let i = 2;
-    while (userFolders.includes(makePath(name))) name = `New folder ${i++}`;
-    const path = makePath(name);
-    setUserFolders((f) => [...f, path]);
-    setJustCreatedFolder(path); // triggers immediate inline rename in the Library
+    void run(async () => {
+      const parentId = parent ? folderIdOf(parent) : null;
+      const siblings = new Set(
+        folders.filter((f) => f.parentId === parentId).map((f) => f.name),
+      );
+      let name = "New folder";
+      for (let i = 2; siblings.has(name); i++) name = `New folder ${i}`;
+      await lib.createFolder(name, parentId);
+      await reload();
+      setJustCreatedFolder(parent ? `${parent}/${name}` : name);
+    });
   }
 
   function saveToFolder(folder: string, payload: ImdDragPayload) {
     if (!payload.svg) return; // only inline SVGs (from the workspace) are savable
-    const id = `user-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    setUserTemplates((t) => [
-      ...t,
-      { id, name: payload.name || "template", svg: payload.svg!, folder, modes: payload.modes },
-    ]);
-    setJustSavedId(id); // triggers inline rename in the Library
+    void run(async () => {
+      const created = await lib.createTemplate({
+        name: payload.name || "template",
+        svg: payload.svg!,
+        mode: payload.modes[0] ?? "current-song",
+        folderId: folderIdOf(folder),
+      });
+      await reload();
+      setJustSavedId(String(created.id));
+    });
   }
 
   function renameTemplate(id: string, name: string) {
-    setUserTemplates((t) => t.map((x) => (x.id === id ? { ...x, name } : x)));
+    const t = templates.find((x) => x.id === Number(id));
+    if (!t) return;
+    void run(async () => {
+      await lib.updateTemplate(t.id, {
+        name,
+        svg: t.svg,
+        mode: t.mode,
+        folderId: t.folderId,
+      });
+      await reload();
+    });
   }
 
-  function renameFolder(oldPath: string, rawName: string) {
+  function renameFolder(path: string, rawName: string) {
     const name = rawName.trim();
     if (!name || name.includes("/")) return;
-    const i = oldPath.lastIndexOf("/");
-    const parent = i === -1 ? "" : oldPath.slice(0, i);
-    const newPath = parent ? `${parent}/${name}` : name;
-    if (newPath === oldPath || userFolders.includes(newPath)) return;
-    const remap = (p: string) =>
-      p === oldPath
-        ? newPath
-        : p.startsWith(`${oldPath}/`)
-          ? newPath + p.slice(oldPath.length)
-          : p;
-    setUserFolders((fs) => fs.map(remap));
-    setUserTemplates((ts) => ts.map((t) => ({ ...t, folder: remap(t.folder) })));
+    const id = folderIdOf(path);
+    const f = folders.find((x) => x.id === id);
+    if (id == null || !f) return;
+    // No-op if a sibling already has that name (would collide on path).
+    const clash = folders.some(
+      (s) => s.parentId === f.parentId && s.id !== id && s.name === name,
+    );
+    if (clash || name === f.name) return;
+    void run(async () => {
+      await lib.updateFolder(id, name, f.parentId);
+      await reload();
+    });
   }
 
   function deleteFolder(path: string) {
-    setUserFolders((fs) =>
-      fs.filter((f) => f !== path && !f.startsWith(`${path}/`)),
-    );
-    setUserTemplates((ts) =>
-      ts.filter((t) => t.folder !== path && !t.folder.startsWith(`${path}/`)),
-    );
+    const id = folderIdOf(path);
+    if (id == null) return;
+    void run(async () => {
+      await lib.deleteFolder(id); // cascades to children + their templates
+      await reload();
+    });
   }
 
   function deleteTemplate(id: string) {
-    setUserTemplates((t) => t.filter((x) => x.id !== id));
+    void run(async () => {
+      await lib.deleteTemplate(Number(id));
+      await reload();
+    });
   }
 
   function moveTemplate(id: string, folder: string) {
-    setUserTemplates((ts) => ts.map((t) => (t.id === id ? { ...t, folder } : t)));
+    const t = templates.find((x) => x.id === Number(id));
+    if (!t) return;
+    void run(async () => {
+      await lib.updateTemplate(t.id, {
+        name: t.name,
+        svg: t.svg,
+        mode: t.mode,
+        folderId: folderIdOf(folder),
+      });
+      await reload();
+    });
   }
 
   function moveFolder(src: string, destParent: string) {
-    if (src === "_debug") return;
     // Can't drop a folder into itself or one of its descendants.
     if (destParent === src || destParent.startsWith(`${src}/`)) return;
-    const name = src.slice(src.lastIndexOf("/") + 1);
-    const newPath = destParent ? `${destParent}/${name}` : name;
-    if (newPath === src || userFolders.includes(newPath)) return;
-    const remap = (p: string) =>
-      p === src
-        ? newPath
-        : p.startsWith(`${src}/`)
-          ? newPath + p.slice(src.length)
-          : p;
-    setUserFolders((fs) => fs.map(remap));
-    setUserTemplates((ts) => ts.map((t) => ({ ...t, folder: remap(t.folder) })));
+    const id = folderIdOf(src);
+    const f = folders.find((x) => x.id === id);
+    if (id == null || !f) return;
+    const destId = destParent ? folderIdOf(destParent) : null;
+    // No-op if the destination already has a folder with this name.
+    const clash = folders.some(
+      (s) => s.parentId === destId && s.id !== id && s.name === f.name,
+    );
+    if (clash) return;
+    void run(async () => {
+      await lib.updateFolder(id, f.name, destId);
+      await reload();
+    });
   }
 
-  function addFolders(paths: string[]) {
-    setUserFolders((fs) => Array.from(new Set([...fs, ...paths])));
-  }
-
-  function addTemplates(
-    items: { name: string; svg: string; folder: string; modes: string[] }[],
-  ) {
-    setUserTemplates((ts) => [
-      ...ts,
-      ...items.map((it, i) => ({
-        id: `user-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 5)}`,
-        ...it,
-      })),
-    ]);
+  // Bulk paste: create folders parents-first (resolving ids as we go), then the
+  // templates inside them. Uses a fresh folder snapshot to avoid stale ids.
+  function pasteSubtree(spec: {
+    folders: string[];
+    templates: { folder: string; name: string; modes: string[]; svg: string }[];
+  }) {
+    void run(async () => {
+      const map = new Map(buildPaths(await lib.loadFolders()).pathToId);
+      const ordered = [...spec.folders].sort(
+        (a, b) => a.split("/").length - b.split("/").length,
+      );
+      for (const path of ordered) {
+        const pp = parentPath(path);
+        const created = await lib.createFolder(
+          lastSegment(path),
+          pp ? (map.get(pp) ?? null) : null,
+        );
+        map.set(path, created.id);
+      }
+      for (const t of spec.templates) {
+        await lib.createTemplate({
+          name: t.name,
+          svg: t.svg,
+          mode: t.modes[0] ?? "current-song",
+          folderId: t.folder ? (map.get(t.folder) ?? null) : null,
+        });
+      }
+      await reload();
+    });
   }
 
   async function loadInto(
@@ -148,6 +250,7 @@ export default function ImmersiveDisplayTool({
         currentMode={mode}
         userFolders={userFolders}
         userTemplates={userTemplates}
+        loggedIn={loggedIn}
         justSavedId={justSavedId}
         onClearJustSaved={() => setJustSavedId(null)}
         justCreatedFolder={justCreatedFolder}
@@ -160,12 +263,17 @@ export default function ImmersiveDisplayTool({
         onDeleteTemplate={deleteTemplate}
         onMoveTemplate={moveTemplate}
         onMoveFolder={moveFolder}
-        onAddFolders={addFolders}
-        onAddTemplates={addTemplates}
+        onPaste={pasteSubtree}
         onLoad={loadInto}
       />
 
       <div className="min-w-0 flex-1 space-y-5">
+        {error && (
+          <p className="rounded-md border border-red-900/50 bg-red-500/5 px-3 py-2 text-sm text-red-400">
+            {error}
+          </p>
+        )}
+
         <div className="flex gap-1 rounded-lg border border-neutral-800 bg-neutral-900/50 p-1">
           {TABS.map((tab) => (
             <button
@@ -184,13 +292,25 @@ export default function ImmersiveDisplayTool({
         </div>
 
         <div className={mode === "current-song" ? "" : "hidden"}>
-          <CurrentSongMode connected={connected} pendingTemplate={pending} />
+          <CurrentSongMode
+            connected={connected}
+            loggedIn={loggedIn}
+            pendingTemplate={pending}
+          />
         </div>
         <div className={mode === "playlist" ? "" : "hidden"}>
-          <PlaylistMode connected={connected} pendingTemplate={pending} />
+          <PlaylistMode
+            connected={connected}
+            loggedIn={loggedIn}
+            pendingTemplate={pending}
+          />
         </div>
         <div className={mode === "queue" ? "" : "hidden"}>
-          <QueueMode connected={connected} pendingTemplate={pending} />
+          <QueueMode
+            connected={connected}
+            loggedIn={loggedIn}
+            pendingTemplate={pending}
+          />
         </div>
       </div>
     </div>

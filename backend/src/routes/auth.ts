@@ -7,31 +7,24 @@ import {
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { prisma } from "../db.js";
+import {
+  JWT_SECRET,
+  COOKIE_NAME,
+  configured,
+  optionalUser,
+  type JwtPayload,
+} from "../middleware/authenticate.js";
 
 // ---------------------------------------------------------------------------
 // Auth: register / login / logout / me. Passwords are bcrypt-hashed; login
 // issues a JWT stored as an HttpOnly cookie. Login is by username + password;
 // the failure message is identical for wrong-user vs wrong-password.
+// (The JWT-verifying side — authenticate/optionalUser — lives in
+// middleware/authenticate.ts.)
 // ---------------------------------------------------------------------------
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET ?? "";
-const COOKIE_NAME = "imd_token";
 const TOKEN_TTL_SECONDS = 60 * 60 * 24; // 24h
-
-export interface JwtPayload {
-  userId: number;
-  email: string;
-  username: string;
-}
-
-export interface AuthedRequest extends Request {
-  user?: JwtPayload;
-}
-
-function configured(): boolean {
-  return JWT_SECRET.length > 0;
-}
 
 function setAuthCookie(res: Response, token: string) {
   res.cookie(COOKIE_NAME, token, {
@@ -52,22 +45,37 @@ function clearAuthCookie(res: Response) {
   });
 }
 
-/** Reads our JWT from the request's Cookie header (no cookie-parser needed). */
-function readToken(req: Request): string | null {
-  const header = req.headers.cookie;
-  if (!header) return null;
-  for (const part of header.split(";")) {
-    const eq = part.indexOf("=");
-    if (eq === -1) continue;
-    const name = part.slice(0, eq).trim();
-    if (name === COOKIE_NAME) {
-      return decodeURIComponent(part.slice(eq + 1).trim());
+// ---------------------------------------------------------------------------
+// Tiny in-memory rate limiter (no extra deps). Keyed by client IP per route;
+// blocks brute-force on login/register. Fine for a single-process dev/uni
+// deployment — swap for a shared store (Redis) if we ever scale horizontally.
+// ---------------------------------------------------------------------------
+function rateLimit(opts: { windowMs: number; max: number }) {
+  const hits = new Map<string, { count: number; resetAt: number }>();
+  return (req: Request, res: Response, next: NextFunction) => {
+    const key = req.ip ?? "unknown";
+    const now = Date.now();
+    const entry = hits.get(key);
+    if (!entry || now >= entry.resetAt) {
+      hits.set(key, { count: 1, resetAt: now + opts.windowMs });
+      next();
+      return;
     }
-  }
-  return null;
+    entry.count += 1;
+    if (entry.count > opts.max) {
+      const retryAfter = Math.ceil((entry.resetAt - now) / 1000);
+      res.setHeader("Retry-After", String(retryAfter));
+      res.status(429).json({ error: "Too many attempts. Please try again later." });
+      return;
+    }
+    next();
+  };
 }
 
-router.post("/auth/register", async (req: Request, res: Response) => {
+// 10 attempts per 15 minutes per IP on the auth entry points.
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10 });
+
+router.post("/auth/register", authLimiter, async (req: Request, res: Response) => {
   if (!configured()) {
     res.status(500).json({ error: "Auth is not configured (set JWT_SECRET)." });
     return;
@@ -113,7 +121,7 @@ router.post("/auth/register", async (req: Request, res: Response) => {
   }
 });
 
-router.post("/auth/login", async (req: Request, res: Response) => {
+router.post("/auth/login", authLimiter, async (req: Request, res: Response) => {
   if (!configured()) {
     res.status(500).json({ error: "Auth is not configured (set JWT_SECRET)." });
     return;
@@ -154,32 +162,12 @@ router.post("/auth/logout", (_req: Request, res: Response) => {
 });
 
 router.get("/auth/me", (req: Request, res: Response) => {
-  const token = readToken(req);
-  if (!token || !configured()) {
+  const user = optionalUser(req);
+  if (!user) {
     res.status(401).json({ error: "Not authenticated." });
     return;
   }
-  try {
-    const payload = jwt.verify(token, JWT_SECRET) as JwtPayload;
-    res.json({ id: payload.userId, username: payload.username, email: payload.email });
-  } catch {
-    res.status(401).json({ error: "Not authenticated." });
-  }
+  res.json({ id: user.userId, username: user.username, email: user.email });
 });
-
-/** Middleware for protected routes (used as ownership/auth is added). */
-export function authenticate(req: Request, res: Response, next: NextFunction) {
-  const token = readToken(req);
-  if (!token || !configured()) {
-    res.status(401).json({ error: "Not authenticated." });
-    return;
-  }
-  try {
-    (req as AuthedRequest).user = jwt.verify(token, JWT_SECRET) as JwtPayload;
-    next();
-  } catch {
-    res.status(401).json({ error: "Not authenticated." });
-  }
-}
 
 export default router;

@@ -1,50 +1,57 @@
+import { cookies } from "next/headers";
 import TopBar from "@/components/TopBar";
 import ToolsSection from "@/components/ToolsSection";
 import { BACKEND_URL } from "@/config";
 import type { ApiConnection, SpotifyProfile, Tool } from "@/types";
 
-async function getTools(): Promise<Tool[]> {
-  // cache: "no-store" -> fetch fresh on every request (dynamic rendering),
-  // so the dashboard always reflects the backend's current state.
-  const res = await fetch(`${BACKEND_URL}/api/tools`, { cache: "no-store" });
-  if (!res.ok) throw new Error(`Failed to load tools (${res.status})`);
-  return res.json();
-}
-
-async function getConnections(): Promise<ApiConnection[]> {
-  const res = await fetch(`${BACKEND_URL}/api/connections`, { cache: "no-store" });
-  if (!res.ok) throw new Error(`Failed to load connections (${res.status})`);
-  return res.json();
-}
-
-// Test fetch: ask the backend for the Spotify profile. Returns null if we're
-// not connected (the backend answers 401) — we render a hint in that case.
-async function getSpotifyProfile(): Promise<SpotifyProfile | null> {
-  const res = await fetch(`${BACKEND_URL}/api/spotify/me`, { cache: "no-store" });
-  if (!res.ok) return null;
-  return res.json();
+// Server-side fetch that forwards the caller's auth cookie to the backend.
+function backendGet(path: string, cookie: string): Promise<Response> {
+  return fetch(`${BACKEND_URL}${path}`, {
+    cache: "no-store",
+    headers: cookie ? { cookie } : undefined,
+  });
 }
 
 // This is a Server Component (the default in the App Router). The `await`s below
 // run on the SERVER at request time — the HTML arrives already filled in.
-// No useEffect, no client-side loading spinner.
 export default async function HomePage() {
-  const [tools, connections] = await Promise.all([getTools(), getConnections()]);
+  const cookie = (await cookies()).toString();
+
+  const [toolsRes, connectionsRes, meRes] = await Promise.all([
+    backendGet("/api/tools", cookie),
+    backendGet("/api/connections", cookie),
+    backendGet("/api/auth/me", cookie),
+  ]);
+
+  const tools: Tool[] = toolsRes.ok ? await toolsRes.json() : [];
+  const connections: ApiConnection[] = connectionsRes.ok
+    ? await connectionsRes.json()
+    : [];
+  const loggedIn = meRes.ok;
   const spotifyConnected = connections.some(
     (c) => c.id === "spotify" && c.connected,
   );
-  const profile = spotifyConnected ? await getSpotifyProfile() : null;
+
+  const profileRes = spotifyConnected
+    ? await backendGet("/api/spotify/me", cookie)
+    : null;
+  const profile: SpotifyProfile | null =
+    profileRes && profileRes.ok ? await profileRes.json() : null;
 
   return (
     <div className="mx-auto flex min-h-screen max-w-5xl flex-col">
-      <TopBar connections={connections} />
+      <TopBar connections={connections} loggedIn={loggedIn} />
       <main className="flex-1 px-6 py-10">
         <h1 className="text-2xl font-semibold">Dashboard</h1>
         <p className="mt-1 text-sm text-neutral-400">
           Available tools for processing your music streaming data.
         </p>
 
-        <ToolsSection tools={tools} spotifyConnected={spotifyConnected} />
+        <ToolsSection
+          tools={tools}
+          spotifyConnected={spotifyConnected}
+          loggedIn={loggedIn}
+        />
 
         {profile && (
           <section className="mt-10 rounded-lg border border-green-900/50 bg-green-500/5 p-5">
