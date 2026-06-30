@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildPaths, type ApiFolder } from "@/lib/imd/library";
+import { buildPaths, type ApiFolder } from "@/features/imd/lib/library";
 
 // Unit tests for buildPaths: turns the backend's id/parentId folder rows into
 // the "A/B/C" path view the Library renders. Pure logic — no DB/network.

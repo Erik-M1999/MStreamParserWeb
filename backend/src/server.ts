@@ -1,11 +1,10 @@
 import express, { type Request, type Response } from "express";
-import spotifyRouter, { isSpotifyConnected } from "./routes/spotify.js";
-import immersiveRouter from "./routes/immersive.js";
-import sampleTemplatesRouter from "./routes/sampleTemplates.js";
-import authRouter from "./routes/auth.js";
+import spotifyRouter from "./modules/spotify/spotify.routes.js";
+import { isSpotifyConnected } from "./modules/spotify/spotify.service.js";
+import immersiveRouter from "./modules/rendering/rendering.routes.js";
+import authRouter from "./modules/auth/auth.routes.js";
 import { optionalUser } from "./middleware/authenticate.js";
-import templatesRouter from "./routes/templates.js";
-import foldersRouter from "./routes/folders.js";
+import libraryRouter from "./modules/library/library.routes.js";
 
 // ---------------------------------------------------------------------------
 // MStreamParserWeb — Express backend (port 3000)
@@ -112,15 +111,11 @@ app.use("/api", spotifyRouter);
 // ImmersiveMusicDisplay render route (mounted under /api).
 app.use("/api", immersiveRouter);
 
-// Read-only demo templates (the "_debug" set).
-app.use("/api", sampleTemplatesRouter);
-
 // Auth routes (register / login / logout / me) under /api.
 app.use("/api", authRouter);
 
-// Per-user resources (auth-protected) under /api.
-app.use("/api", templatesRouter);
-app.use("/api", foldersRouter);
+// Library context: demo templates (public) + per-user templates/folders (auth).
+app.use("/api", libraryRouter);
 
 app.listen(PORT, () => {
   console.log(`[backend] listening on http://127.0.0.1:${PORT}`);
