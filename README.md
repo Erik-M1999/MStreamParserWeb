@@ -9,7 +9,9 @@ Roadmap:
 - [X] Implement basic Web and Spotify API connection.
 - [X] Do not forget to NOT commit  API key.
 - [X] Integrate and expand ImmersiveMusicDisplay functionality.
-- [ ] *Set up optional login with databases.
+- [X] Set up optional login with databases.
+- [ ] *Testing
+- [ ] Revamp Interface design
 - [ ] Set up API for external tool access. Test it with 3Ds Max.
 - [ ] Add parser to convert playlists into plain .txt or .csv files.
 - [ ] Trial a different API, especially last.fm.
