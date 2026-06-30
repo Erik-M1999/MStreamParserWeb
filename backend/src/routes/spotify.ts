@@ -338,21 +338,63 @@ router.get("/spotify/me", authenticate, async (req: Request, res: Response) => {
   }
 });
 
+/** The JSON shape the frontend's now-playing UI consumes (one source of truth
+ *  for both the one-shot GET and the SSE stream below). */
+function toNowPlayingPayload(np: NowPlayingResult) {
+  if (np.state === "none") return { playing: false };
+  if (np.state === "unsupported") return { playing: true, supported: false, type: np.type };
+  return { playing: true, supported: true, type: "track", ...np.track };
+}
+
 router.get("/spotify/now-playing", authenticate, async (req: Request, res: Response) => {
   try {
-    const np = await getNowPlaying(userIdOf(req));
-    if (np.state === "none") {
-      res.json({ playing: false });
-      return;
-    }
-    if (np.state === "unsupported") {
-      res.json({ playing: true, supported: false, type: np.type });
-      return;
-    }
-    res.json({ playing: true, supported: true, type: "track", ...np.track });
+    res.json(toNowPlayingPayload(await getNowPlaying(userIdOf(req))));
   } catch (err) {
     handleSpotifyError(err, res);
   }
+});
+
+// Live now-playing via Server-Sent Events. Spotify has no push API, so the
+// server polls per connected client and emits an event only when the track
+// changes — the browser's EventSource gets push-like updates and auto-reconnects
+// on drop. One-way (server -> client); see the README's SSE vs WebSockets note.
+router.get("/spotify/now-playing/stream", authenticate, (req: Request, res: Response) => {
+  const userId = userIdOf(req);
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no"); // don't let a proxy buffer the stream
+  res.flushHeaders();
+
+  let closed = false;
+  let lastPayload = ""; // only push when the serialized payload changes
+
+  async function tick() {
+    if (closed) return;
+    try {
+      const payload = JSON.stringify(toNowPlayingPayload(await getNowPlaying(userId)));
+      if (payload !== lastPayload) {
+        lastPayload = payload;
+        res.write(`data: ${payload}\n\n`);
+      }
+    } catch {
+      // Transient Spotify/refresh error — skip this tick and try again later.
+    }
+  }
+
+  void tick(); // push the current state immediately
+  const poll = setInterval(() => void tick(), 6000);
+  const heartbeat = setInterval(() => {
+    if (!closed) res.write(": ping\n\n"); // comment line keeps the connection warm
+  }, 25000);
+
+  req.on("close", () => {
+    closed = true;
+    clearInterval(poll);
+    clearInterval(heartbeat);
+    res.end();
+  });
 });
 
 async function rawSpotifyGet(token: string, path: string) {

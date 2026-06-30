@@ -187,13 +187,24 @@ export default function CurrentSongMode({
     return null;
   }
 
-  // Poll so the "Now playing" line stays current and the user can see when the
-  // song changes (and re-render to it). Cleared when the modal/component closes.
+  // Live "Now playing" via SSE: the backend pushes the track whenever it changes,
+  // so the line follows playback without polling. EventSource auto-reconnects on
+  // drop. The user still re-renders the image manually (see the songChanged hint).
   useEffect(() => {
     if (!connected) return;
-    void fetchNowPlaying();
-    const id = setInterval(() => void fetchNowPlaying(), 10000);
-    return () => clearInterval(id);
+    const es = new EventSource(
+      `${BACKEND_URL}/api/spotify/now-playing/stream`,
+      { withCredentials: true },
+    );
+    es.onmessage = (e) => {
+      try {
+        setNowPlaying(JSON.parse(e.data) as NowPlaying);
+      } catch {
+        /* ignore a malformed event */
+      }
+    };
+    // EventSource reconnects on its own; no onerror handling needed.
+    return () => es.close();
   }, [connected]);
 
   async function render(svg: string) {
