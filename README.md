@@ -139,6 +139,47 @@ Die App handelt sich um Single-Users. Es gibt keine User -> User Kommunikation. 
 Für Beide Zwecke reicht eine E-Mail Benachrichtigung komplett aus
 
 ### 09)
+**Bestandsaufnahme**
+
+| Datei | Wofür ist sie verantwortlich? | Greift sie auf Daten anderer Bereiche zu? |
+|---|---|---|
+| routes/auth.js | Register, Login, Logout | Nein, stößt aber mail.ts an für Wilkommen-Mail |
+| routes/immersive.js | Rendering: Template + API Daten -> gefülltes SVG / PNG | Ruft Spotify Funktionen zum Rendern auf |
+| routes/sampleTemplates.js | Read-Only Demo Daten | Nein (Auf Festplatte gespeicherte Elemente) |
+| templates.js | Template Management | Liest `Folder` für `folderId` |
+| routes/folders.js | Ordner Management | Liest `Template` für Unterstruktur |
+| routes/spotify.js | Spotify OAuth, Tokene Management und API Anfragen | Nein |
+| server.js | CORS, Router Mounting, `/api/tools`: beide Main Tools auf Dashboard, `/api/connections`: Externe API Tools | `/api/connections` ruft externe APIs bzw. Spotify |
+
+
+**Analysis — business logic to extract & cross-domain access**
+
+Handlers that contain business logic that belongs in its own service function:
+
+- `auth.ts` (register/login): input validation, duplicate check, `bcrypt`, `jwt.sign`, and the Prisma calls are all inline → `authService.register()/login()` (cookie-setting stays in the route).
+- `spotify.ts` (OAuth callback): the token exchange + token encryption + `connection.upsert` is one big inline block → `spotifyService.connect(userId, code)`. (`refreshAndStore`, `getValidAccessToken`, `getNowPlaying/Queue/Playlists` are already extracted functions — good.)
+- `immersive.ts` (render): token check + `buildFill` + cover-inlining + `fillTemplate` + error mapping live in the handler → `renderingService.render(userId, svg, mode)`.
+- `templates.ts` / `folders.ts`: validation + `resolveFolder`/`resolveParent` + every Prisma call sit in the handlers → `libraryService`.
+- `server.ts`: the `/api/connections` logic belongs in the Spotify module, not the composition root.
+
+Cross-domain DB access — essentially none (no real violations):
+
+- `templates.ts` reads `Folder` and `folders.ts` reads `Template`, but Folder + Template are the **same context (Library)**, so it's intra-context — which is exactly why they stay in one module.
+- `immersive.ts` gets its Spotify data by **calling Spotify's functions**, never touching the `Connection` table directly → already the correct service-to-service pattern.
+- Only mild reach: `server.ts`'s `/api/connections` calls `isSpotifyConnected()` (fine for a composition root, cleaner inside the Spotify module).
+
+Conclusion: the codebase is already clean on cross-domain *data* access; the Session-09 work is pulling business logic out of fat route handlers into per-context services.
+
+**Bounded Contexts**
+
+| Auth Context | Library Context | Rendering Context | Spotify Context |
+|---|---|---|---|
+| User | Template | fillTemplates() | Connection |
+| Register / Login | Folder | render(svg, data) | OAuth access / refresh |
+| Session / JWT | _debug Demo |  | now-playing / queue / playlists |
+| Authenticate |  |  |  |
+
+Kontexte die miteinander Kommunizieren: `Rendering -> Spotify`: Zum Rendern eines Template fragt Rendering bei Spotify zu einem `userId` die nötigen Daten für den aktiven Modus ab. Zum Beispiel Current Song benötige es nur `artist, title, album, coverUrl`.
 
 ### 10)
 
