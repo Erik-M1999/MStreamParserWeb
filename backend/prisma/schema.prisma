@@ -1,0 +1,75 @@
+// Local dev uses a dedicated SQLite file, hardcoded so it ignores any
+// DATABASE_URL in .env (e.g. a not-yet-ready Hetzner MySQL URL).
+// At deploy (Session 10): switch provider to "mysql" and url to
+// env("DATABASE_URL"), then re-run migrations — the models below stay the same.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  username     String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  folders     Folder[]
+  templates   Template[]
+  connections Connection[]
+  apiKeys     ApiKey[]
+}
+
+model Folder {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  parentId  Int?
+  parent    Folder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children  Folder[] @relation("FolderTree")
+  templates Template[]
+  createdAt DateTime @default(now())
+}
+
+model Template {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  svg       String
+  mode      String
+  folderId  Int?
+  folder    Folder?  @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Connection {
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider     String
+  accessToken  String
+  refreshToken String
+  expiresAt    DateTime
+  scopes       String
+  createdAt    DateTime @default(now())
+
+  @@unique([userId, provider])
+}
+
+model ApiKey {
+  id         Int       @id @default(autoincrement())
+  userId     Int
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  keyHash    String    @unique
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+}

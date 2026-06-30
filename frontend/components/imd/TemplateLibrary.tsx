@@ -84,6 +84,7 @@ export default function TemplateLibrary({
   currentMode,
   userFolders,
   userTemplates,
+  loggedIn,
   justSavedId,
   onClearJustSaved,
   justCreatedFolder,
@@ -96,13 +97,13 @@ export default function TemplateLibrary({
   onDeleteTemplate,
   onMoveTemplate,
   onMoveFolder,
-  onAddFolders,
-  onAddTemplates,
+  onPaste,
   onLoad,
 }: {
   currentMode: string;
   userFolders: string[];
   userTemplates: UserTemplate[];
+  loggedIn: boolean;
   justSavedId: string | null;
   onClearJustSaved: () => void;
   justCreatedFolder: string | null;
@@ -115,10 +116,10 @@ export default function TemplateLibrary({
   onDeleteTemplate: (id: string) => void;
   onMoveTemplate: (id: string, folder: string) => void;
   onMoveFolder: (src: string, destParent: string) => void;
-  onAddFolders: (paths: string[]) => void;
-  onAddTemplates: (
-    items: { name: string; svg: string; folder: string; modes: string[] }[],
-  ) => void;
+  onPaste: (spec: {
+    folders: string[];
+    templates: { folder: string; name: string; modes: string[]; svg: string }[];
+  }) => void;
   onLoad: (
     modes: string[],
     name: string,
@@ -141,7 +142,7 @@ export default function TemplateLibrary({
   const [menu, setMenu] = useState<Menu | null>(null);
 
   useEffect(() => {
-    fetch(`${BACKEND_URL}/api/templates`)
+    fetch(`${BACKEND_URL}/api/sample-templates`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error())))
       .then((d: DebugTemplate[]) => setDebug(d))
       .catch(() => setError("Couldn't load templates."));
@@ -245,7 +246,7 @@ export default function TemplateLibrary({
     if (t.svg != null) return t.svg;
     if (t.backendId) {
       const r = await fetch(
-        `${BACKEND_URL}/api/templates/${encodeURIComponent(t.backendId)}`,
+        `${BACKEND_URL}/api/sample-templates/${encodeURIComponent(t.backendId)}`,
       );
       return r.ok ? await r.text() : null;
     }
@@ -303,21 +304,24 @@ export default function TemplateLibrary({
   function pasteInto(target: string) {
     if (!clipboard) return;
     if (clipboard.kind === "template") {
-      onAddTemplates([
-        { name: clipboard.name, modes: clipboard.modes, svg: clipboard.svg, folder: target },
-      ]);
+      onPaste({
+        folders: [],
+        templates: [
+          { folder: target, name: clipboard.name, modes: clipboard.modes, svg: clipboard.svg },
+        ],
+      });
       return;
     }
     const root = uniqueFolderPath(target ? `${target}/${clipboard.name}` : clipboard.name);
-    onAddFolders([root, ...clipboard.folders.map((rel) => `${root}/${rel}`)]);
-    onAddTemplates(
-      clipboard.templates.map((t) => ({
+    onPaste({
+      folders: [root, ...clipboard.folders.map((rel) => `${root}/${rel}`)],
+      templates: clipboard.templates.map((t) => ({
+        folder: t.folder ? `${root}/${t.folder}` : root,
         name: t.name,
         modes: t.modes,
         svg: t.svg,
-        folder: t.folder ? `${root}/${t.folder}` : root,
       })),
-    );
+    });
     openAncestors(root);
     setOpen((o) => ({ ...o, [root]: true }));
   }
@@ -602,7 +606,9 @@ export default function TemplateLibrary({
       </div>
 
       <p className="mt-3 border-t border-neutral-800 pt-2 text-[10px] text-neutral-600">
-        Saved folders/templates last only this session until accounts arrive.
+        {loggedIn
+          ? "Your folders and templates are saved to your account."
+          : "Log in to save your own folders and templates."}
       </p>
 
       {menu && (

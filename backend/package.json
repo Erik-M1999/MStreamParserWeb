@@ -7,15 +7,22 @@
     "build": "tsc",
     "start": "node --env-file-if-exists=.env dist/server.js",
     "watch": "tsc --watch",
-    "dev": "node --watch --env-file-if-exists=.env dist/server.js"
+    "dev": "node --watch --env-file-if-exists=.env dist/server.js",
+    "seed": "tsc && node --env-file-if-exists=.env dist/scripts/seed.js"
   },
   "dependencies": {
     "express": "5.2.1",
-    "@xmldom/xmldom": "0.9.10"
+    "@xmldom/xmldom": "0.9.10",
+    "@prisma/client": "6.19.3",
+    "bcrypt": "6.0.0",
+    "jsonwebtoken": "9.0.3"
   },
   "devDependencies": {
     "typescript": "6.0.3",
     "@types/node": "24.13.2",
-    "@types/express": "5.0.6"
+    "@types/express": "5.0.6",
+    "@types/bcrypt": "6.0.0",
+    "@types/jsonwebtoken": "9.0.10",
+    "prisma": "6.19.3"
   }
 }

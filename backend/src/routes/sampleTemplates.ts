@@ -11,7 +11,8 @@ import path from "node:path";
 // ---------------------------------------------------------------------------
 
 const router = Router();
-const TEMPLATES_DIR = path.join(__dirname, "..", "sample-templates");
+// dist/routes/sampleTemplates.js -> ../../sample-templates = backend/sample-templates
+const TEMPLATES_DIR = path.join(__dirname, "..", "..", "sample-templates");
 const DEBUG_FOLDER = "_debug";
 
 type Mode = "current-song" | "playlist" | "queue";
@@ -35,7 +36,7 @@ function listSvgFiles(): string[] {
   }
 }
 
-router.get("/templates", (_req: Request, res: Response) => {
+router.get("/sample-templates", (_req: Request, res: Response) => {
   const items = listSvgFiles().map((file) => ({
     id: file,
     name: file.replace(/\.svg$/i, ""),
@@ -46,7 +47,7 @@ router.get("/templates", (_req: Request, res: Response) => {
   res.json(items);
 });
 
-router.get("/templates/:id", (req: Request, res: Response) => {
+router.get("/sample-templates/:id", (req: Request, res: Response) => {
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   // Guard against path traversal: only bare filenames from the known list.
   if (id.includes("/") || id.includes("\\") || id.includes("..")) {

@@ -12,9 +12,11 @@ import type { Tool } from "@/types";
 export default function ToolsSection({
   tools,
   spotifyConnected,
+  loggedIn,
 }: {
   tools: Tool[];
   spotifyConnected: boolean;
+  loggedIn: boolean;
 }) {
   const [openToolId, setOpenToolId] = useState<string | null>(null);
 
@@ -39,7 +41,7 @@ export default function ToolsSection({
         onClose={() => setOpenToolId(null)}
         title="Immersive Music Display"
       >
-        <ImmersiveDisplayTool connected={spotifyConnected} />
+        <ImmersiveDisplayTool connected={spotifyConnected} loggedIn={loggedIn} />
       </Modal>
     </>
   );

@@ -49,10 +49,12 @@ function clampInt(value: string | number): number {
  */
 export default function ModeWorkspace({
   connected,
+  loggedIn,
   mode,
   pendingTemplate,
 }: {
   connected: boolean;
+  loggedIn: boolean;
   mode: string;
   pendingTemplate?: PendingTemplate | null;
 }) {
@@ -95,7 +97,12 @@ export default function ModeWorkspace({
     try {
       const res = await fetch(
         `${BACKEND_URL}/api/immersive/render?mode=${encodeURIComponent(mode)}`,
-        { method: "POST", headers: { "Content-Type": "image/svg+xml" }, body: svg },
+        {
+          method: "POST",
+          headers: { "Content-Type": "image/svg+xml" },
+          credentials: "include",
+          body: svg,
+        },
       );
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
@@ -141,7 +148,7 @@ export default function ModeWorkspace({
     if (!svg && p.backendId) {
       try {
         const r = await fetch(
-          `${BACKEND_URL}/api/templates/${encodeURIComponent(p.backendId)}`,
+          `${BACKEND_URL}/api/sample-templates/${encodeURIComponent(p.backendId)}`,
         );
         if (r.ok) svg = await r.text();
       } catch {
@@ -265,15 +272,31 @@ export default function ModeWorkspace({
   if (!connected) {
     return (
       <div className="rounded-lg border border-neutral-800 bg-neutral-900/50 p-6">
-        <p className="text-sm text-neutral-300">
-          Connect your Spotify account to use this tool.
-        </p>
-        <a
-          href={`${BACKEND_URL}/api/auth/spotify/login`}
-          className="mt-4 inline-block rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-500"
-        >
-          Connect Spotify
-        </a>
+        {loggedIn ? (
+          <>
+            <p className="text-sm text-neutral-300">
+              Connect your Spotify account to use this tool.
+            </p>
+            <a
+              href={`${BACKEND_URL}/api/auth/spotify/login`}
+              className="mt-4 inline-block rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-500"
+            >
+              Connect Spotify
+            </a>
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-neutral-300">
+              Log in to connect Spotify and use this tool.
+            </p>
+            <a
+              href="/login"
+              className="mt-4 inline-block rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-500"
+            >
+              Log in
+            </a>
+          </>
+        )}
       </div>
     );
   }
