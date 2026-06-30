@@ -33,9 +33,10 @@ export default function AuthStatus() {
 
   return (
     <span className="ml-2 flex items-center gap-2 text-sm">
-      <span className="text-neutral-300">{me.username}</span>
+      <span data-cy="user-name" className="text-neutral-300">{me.username}</span>
       <button
         type="button"
+        data-cy="logout-btn"
         onClick={async () => {
           await logout();
           setMe(null);

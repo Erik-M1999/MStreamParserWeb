@@ -458,6 +458,7 @@ export default function TemplateLibrary({
     return (
       <div key={t.key} style={{ paddingLeft: depth * 12 + 4 }}>
         <div
+          data-cy="template"
           draggable={!isRenaming}
           onDragStart={(e) => onTemplateDragStart(e, t)}
           onClick={(e) => {
@@ -476,6 +477,7 @@ export default function TemplateLibrary({
           {isRenaming ? (
             <input
               autoFocus
+              data-cy="rename-input"
               onFocus={(e) => e.currentTarget.select()}
               value={renameValue}
               onChange={(e) => setRenameValue(e.target.value)}
@@ -521,6 +523,7 @@ export default function TemplateLibrary({
     return (
       <div key={path}>
         <div
+          data-cy="folder"
           draggable={path !== "_debug" && !isRenaming}
           onDragStart={(e) => onFolderDragStart(e, path)}
           onClick={(e) => {
@@ -545,6 +548,7 @@ export default function TemplateLibrary({
           {isRenaming ? (
             <input
               autoFocus
+              data-cy="rename-input"
               onFocus={(e) => e.currentTarget.select()}
               value={renameValue}
               onChange={(e) => setRenameValue(e.target.value)}
@@ -578,6 +582,7 @@ export default function TemplateLibrary({
         </h3>
         <button
           type="button"
+          data-cy="new-folder-btn"
           onClick={() =>
             onNewFolder(
               selected?.type === "folder" && selected.key !== "_debug"
@@ -613,6 +618,7 @@ export default function TemplateLibrary({
 
       {menu && (
         <div
+          data-cy="context-menu"
           className="fixed z-[60] min-w-[9rem] rounded-md border border-neutral-700 bg-neutral-900 py-1 text-sm shadow-xl"
           style={{ left: menu.x, top: menu.y }}
           onClick={(e) => e.stopPropagation()}
