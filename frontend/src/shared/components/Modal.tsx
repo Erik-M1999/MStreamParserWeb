@@ -36,23 +36,28 @@ export default function Modal({
       role="dialog"
       aria-modal="true"
     >
-      {/* Backdrop — dims the dashboard but keeps the top bar visible behind it. */}
-      <div className="absolute inset-0 bg-black/60" aria-hidden onClick={onClose} />
+      {/* Backdrop — a high-transparency light gray wash (DESIGN.md prefers washes
+          over floating shadowed boxes). */}
+      <div
+        className="absolute inset-0 bg-surface-dim/70"
+        aria-hidden
+        onClick={onClose}
+      />
 
-      {/* Floating window */}
-      <div className="relative z-10 flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-neutral-800 bg-neutral-950 shadow-2xl">
-        <div className="flex items-center justify-between border-b border-neutral-800 px-5 py-3">
-          <h2 className="text-sm font-semibold">{title}</h2>
+      {/* Flat window: sharp corners, 1px outline, no shadow. */}
+      <div className="relative z-10 flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden border border-outline bg-surface-container-lowest">
+        <div className="flex items-center justify-between border-b border-outline-variant px-6 py-4">
+          <h2 className="type-label-bold uppercase text-on-surface">{title}</h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="rounded-md px-2 py-1 text-neutral-400 transition-colors hover:bg-neutral-800 hover:text-neutral-100"
+            className="px-2 py-1 text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
           >
             ✕
           </button>
         </div>
-        <div className="overflow-y-auto p-5">{children}</div>
+        <div className="overflow-y-auto p-6">{children}</div>
       </div>
     </div>
   );

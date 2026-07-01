@@ -1,4 +1,4 @@
-// Immersive Music Display — client-side export helpers (SVG download + PNG
+// SVG Texture Labs — client-side export helpers (SVG download + PNG
 // rasterization). Tool-specific; other tools (e.g. playlist→text) get their own.
 
 export function downloadBlob(blob: Blob, filename: string) {

@@ -20,7 +20,7 @@ const app = express();
 const PORT = 3000;
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN ?? "http://127.0.0.1:5173";
 
-// Allow our frontend's browser-side calls (e.g. the Immersive Display tool).
+// Allow our frontend's browser-side calls (e.g. the SVG Texture Labs tool).
 // Both loopback spellings are allowed because the Next dev server answers on
 // localhost AND 127.0.0.1, and the browser treats them as different origins.
 const ALLOWED_ORIGINS = new Set([
@@ -75,13 +75,13 @@ interface ApiConnection {
 const tools: Tool[] = [
   {
     id: "playlist-parser",
-    name: "Playlist Parser",
+    name: "Playlist Extractor",
     description: "Convert playlists into plain .txt or .csv files.",
     status: "coming-soon",
   },
   {
     id: "immersive-display",
-    name: "Immersive Music Display",
+    name: "SVG Texture Labs",
     description: "Fill an SVG template with the song you're currently playing.",
     status: "available",
   },

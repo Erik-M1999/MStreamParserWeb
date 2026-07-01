@@ -22,7 +22,7 @@ export default function ToolsSection({
 
   return (
     <>
-      <div className="mt-8 grid gap-4 sm:grid-cols-2">
+      <div className="mt-10 grid gap-6 sm:grid-cols-2">
         {tools.map((tool) => (
           <ToolCard
             key={tool.id}
@@ -39,7 +39,7 @@ export default function ToolsSection({
       <Modal
         open={openToolId === "immersive-display"}
         onClose={() => setOpenToolId(null)}
-        title="Immersive Music Display"
+        title="SVG Texture Labs"
       >
         <ImmersiveDisplayTool connected={spotifyConnected} loggedIn={loggedIn} />
       </Modal>

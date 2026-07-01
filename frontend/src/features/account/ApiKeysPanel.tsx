@@ -65,13 +65,14 @@ export default function ApiKeysPanel() {
     }
   }
 
-  if (loggedIn === null) return <p className="text-sm text-neutral-500">Loading…</p>;
+  if (loggedIn === null)
+    return <p className="text-sm text-on-surface-variant">Loading…</p>;
 
   if (!loggedIn) {
     return (
-      <p className="text-sm text-neutral-300">
+      <p className="text-sm text-on-surface">
         Please{" "}
-        <Link href="/login" className="text-green-400 hover:underline">
+        <Link href="/login" className="text-primary hover:underline">
           log in
         </Link>{" "}
         to manage API keys.
@@ -81,9 +82,10 @@ export default function ApiKeysPanel() {
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-neutral-400">
+      <p className="text-sm text-on-surface-variant">
         API keys let external tools (e.g. 3Ds Max) access your account. Send the key
-        as <code className="text-neutral-300">Authorization: Bearer &lt;key&gt;</code>.
+        as{" "}
+        <code className="text-on-surface">Authorization: Bearer &lt;key&gt;</code>.
         Treat it like a password.
       </p>
 
@@ -94,13 +96,13 @@ export default function ApiKeysPanel() {
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Key name (e.g. 3Ds Max)"
-          className="flex-1 rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-neutral-500"
+          className="flex-1 border border-outline bg-surface-container-lowest px-3 py-2 text-sm text-on-surface outline-none focus:border-primary"
         />
         <button
           type="button"
           onClick={onCreate}
           disabled={busy || !name.trim()}
-          className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-500 disabled:cursor-not-allowed disabled:opacity-50"
+          className="bg-primary px-4 py-2 type-label-bold uppercase text-on-primary transition-colors hover:bg-primary-container disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy ? "Creating…" : "Create key"}
         </button>
@@ -108,49 +110,47 @@ export default function ApiKeysPanel() {
 
       {/* Just-created key, shown once */}
       {created && (
-        <div className="rounded-md border border-green-900/60 bg-green-500/5 p-4">
-          <p className="text-sm font-medium text-green-400">
+        <div className="border border-success bg-success/10 p-4">
+          <p className="type-label-bold text-success">
             Copy your key now — you won&apos;t see it again.
           </p>
           <div className="mt-2 flex items-center gap-2">
-            <code className="flex-1 break-all rounded bg-neutral-900 px-2 py-1 text-xs text-neutral-100">
+            <code className="flex-1 break-all bg-surface-container-lowest px-2 py-1 text-xs text-on-surface">
               {created.key}
             </code>
             <button
               type="button"
               onClick={() => navigator.clipboard?.writeText(created.key)}
-              className="rounded-md border border-neutral-700 px-3 py-1 text-xs hover:border-neutral-500"
+              className="border border-outline px-3 py-1 text-xs transition-colors hover:border-primary"
             >
               Copy
             </button>
           </div>
-          <p className="mt-3 text-xs text-neutral-500">Test it:</p>
-          <code className="mt-1 block break-all rounded bg-neutral-900 px-2 py-1 text-xs text-neutral-400">
+          <p className="mt-3 text-xs text-on-surface-variant">Test it:</p>
+          <code className="mt-1 block break-all bg-surface-container-lowest px-2 py-1 text-xs text-on-surface-variant">
             curl -H &quot;Authorization: Bearer {created.key}&quot; {BACKEND_URL}/api/v1/whoami
           </code>
         </div>
       )}
 
       {error && (
-        <p className="rounded-md border border-red-900/60 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+        <p className="border border-error bg-error-container px-3 py-2 text-sm text-on-error-container">
           {error}
         </p>
       )}
 
       {/* List */}
       <div>
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
-          Your keys
-        </h3>
+        <h3 className="type-label-sm text-on-surface-variant">Your keys</h3>
         {keys.length === 0 ? (
-          <p className="mt-2 text-sm text-neutral-500">No keys yet.</p>
+          <p className="mt-2 text-sm text-on-surface-variant">No keys yet.</p>
         ) : (
-          <ul className="mt-2 divide-y divide-neutral-800 rounded-md border border-neutral-800">
+          <ul className="mt-2 divide-y divide-outline-variant border border-outline-variant">
             {keys.map((k) => (
               <li key={k.id} className="flex items-center justify-between gap-3 px-3 py-2">
                 <div className="min-w-0">
-                  <p className="truncate text-sm text-neutral-200">{k.name}</p>
-                  <p className="text-xs text-neutral-500">
+                  <p className="truncate text-sm text-on-surface">{k.name}</p>
+                  <p className="text-xs text-on-surface-variant">
                     created {new Date(k.createdAt).toLocaleDateString()} ·{" "}
                     {k.lastUsedAt
                       ? `last used ${new Date(k.lastUsedAt).toLocaleString()}`
@@ -160,7 +160,7 @@ export default function ApiKeysPanel() {
                 <button
                   type="button"
                   onClick={() => onRevoke(k.id)}
-                  className="shrink-0 rounded-md border border-neutral-700 px-3 py-1 text-xs text-neutral-400 hover:border-red-700 hover:text-red-400"
+                  className="shrink-0 border border-outline px-3 py-1 text-xs text-on-surface-variant transition-colors hover:border-error hover:text-error"
                 >
                   Revoke
                 </button>

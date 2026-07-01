@@ -269,12 +269,12 @@ export default function ImmersiveDisplayTool({
 
       <div className="min-w-0 flex-1 space-y-5">
         {error && (
-          <p className="rounded-md border border-red-900/50 bg-red-500/5 px-3 py-2 text-sm text-red-400">
+          <p className="rounded-md border border-error bg-error-container px-3 py-2 text-sm text-error">
             {error}
           </p>
         )}
 
-        <div className="flex gap-1 rounded-lg border border-neutral-800 bg-neutral-900/50 p-1">
+        <div className="flex gap-1 rounded-lg border border-outline-variant bg-surface-container-low p-1">
           {TABS.map((tab) => (
             <button
               key={tab.id}
@@ -282,8 +282,8 @@ export default function ImmersiveDisplayTool({
               onClick={() => setMode(tab.id)}
               className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                 mode === tab.id
-                  ? "bg-neutral-100 text-neutral-900"
-                  : "text-neutral-400 hover:text-neutral-100"
+                  ? "bg-primary text-on-primary"
+                  : "text-on-surface-variant hover:text-on-surface"
               }`}
             >
               {tab.label}
