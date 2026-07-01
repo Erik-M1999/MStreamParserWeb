@@ -72,6 +72,27 @@ router.get("/spotify/me", authenticate, async (req: Request, res: Response) => {
   }
 });
 
+// Playlist Extractor: list the user's playlists, and export one to ordered tracks.
+router.get("/spotify/playlists", authenticate, async (req: Request, res: Response) => {
+  try {
+    res.json({ playlists: await spotify.listMyPlaylists(userIdOf(req)) });
+  } catch (err) {
+    handleSpotifyError(err, res);
+  }
+});
+
+router.get("/spotify/playlists/:id", authenticate, async (req: Request, res: Response) => {
+  try {
+    res.json(await spotify.getPlaylistExport(userIdOf(req), String(req.params.id)));
+  } catch (err) {
+    if (err instanceof Error && err.message === "playlist_not_found") {
+      res.status(404).json({ error: "Playlist not found or not accessible." });
+      return;
+    }
+    handleSpotifyError(err, res);
+  }
+});
+
 router.get("/spotify/now-playing", authenticate, async (req: Request, res: Response) => {
   try {
     res.json(spotify.toNowPlayingPayload(await spotify.getNowPlaying(userIdOf(req))));

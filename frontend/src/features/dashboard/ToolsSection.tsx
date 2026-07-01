@@ -4,11 +4,12 @@ import { useState } from "react";
 import ToolCard from "@/features/dashboard/ToolCard";
 import Modal from "@/shared/components/Modal";
 import ImmersiveDisplayTool from "@/features/imd/ImmersiveDisplayTool";
+import PlaylistExtractorTool from "@/features/playlist/PlaylistExtractorTool";
 import type { Tool } from "@/shared/types";
 
 // Renders the tool grid and opens functional tools in a floating modal, so the
-// dashboard (and its top bar) stays in place. For now only "immersive-display"
-// has a modal; we map more tool ids to their modals here as we build them.
+// dashboard (and its sidebar) stays in place. Each functional tool id maps to
+// its own modal below; add more entries as we build them.
 export default function ToolsSection({
   tools,
   spotifyConnected,
@@ -42,6 +43,14 @@ export default function ToolsSection({
         title="SVG Texture Labs"
       >
         <ImmersiveDisplayTool connected={spotifyConnected} loggedIn={loggedIn} />
+      </Modal>
+
+      <Modal
+        open={openToolId === "playlist-parser"}
+        onClose={() => setOpenToolId(null)}
+        title="Playlist Extractor"
+      >
+        <PlaylistExtractorTool connected={spotifyConnected} loggedIn={loggedIn} />
       </Modal>
     </>
   );

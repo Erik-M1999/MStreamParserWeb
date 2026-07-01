@@ -76,8 +76,8 @@ const tools: Tool[] = [
   {
     id: "playlist-parser",
     name: "Playlist Extractor",
-    description: "Convert playlists into plain .txt or .csv files.",
-    status: "coming-soon",
+    description: "Convert a Spotify playlist into a plain .txt track list.",
+    status: "available",
   },
   {
     id: "immersive-display",

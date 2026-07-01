@@ -216,6 +216,134 @@ export async function getPlaylists(userId: number, limit = 5): Promise<PlaylistE
   }));
 }
 
+// --- Playlist Extractor ---------------------------------------------------
+
+export interface PlaylistSummary {
+  id: string;
+  name: string;
+  owner: string;
+  trackCount: number;
+  coverUrl: string | null;
+}
+
+interface RawPlaylist {
+  id?: string;
+  name?: string;
+  owner?: { display_name?: string };
+  images?: { url: string }[];
+  tracks?: { total?: number };
+}
+
+/** All of the user's saved/owned playlists, paginated to completion. */
+export async function listMyPlaylists(userId: number): Promise<PlaylistSummary[]> {
+  const token = await getValidAccessToken(userId);
+  const out: PlaylistSummary[] = [];
+  let url: string | null = `${SPOTIFY_API_BASE}/me/playlists?limit=50`;
+  while (url) {
+    const res: Response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      console.error(`[spotify] playlists ${res.status}:`, detail);
+      throw new Error(`spotify_${res.status}`);
+    }
+    const data = (await res.json()) as { items: RawPlaylist[]; next: string | null };
+    for (const p of data.items ?? []) {
+      if (!p?.id) continue;
+      out.push({
+        id: p.id,
+        name: p.name ?? "Untitled",
+        owner: p.owner?.display_name ?? "",
+        trackCount: p.tracks?.total ?? 0,
+        coverUrl: p.images?.[0]?.url ?? null,
+      });
+    }
+    url = data.next;
+  }
+  return out;
+}
+
+export interface ExportedTrack {
+  position: number;
+  artist: string;
+  title: string;
+}
+export interface PlaylistExport {
+  id: string;
+  name: string;
+  owner: string;
+  tracks: ExportedTrack[];
+}
+
+/** A single playlist's tracks in its stored order, numbered for export.
+ *  Works for any playlist the user's token can read (own or public). */
+export async function getPlaylistExport(
+  userId: number,
+  playlistId: string,
+): Promise<PlaylistExport> {
+  const token = await getValidAccessToken(userId);
+  const auth = { Authorization: `Bearer ${token}` };
+
+  // Metadata (name/owner) for the filename + header.
+  const metaRes = await fetch(
+    `${SPOTIFY_API_BASE}/playlists/${playlistId}?fields=id,name,owner(display_name)`,
+    { headers: auth },
+  );
+  if (metaRes.status === 404) throw new Error("playlist_not_found");
+  if (!metaRes.ok) {
+    const detail = await metaRes.text().catch(() => "");
+    console.error(`[spotify] playlist meta ${metaRes.status}:`, detail);
+    throw new Error(`spotify_${metaRes.status}`);
+  }
+  const meta = (await metaRes.json()) as {
+    id?: string;
+    name?: string;
+    owner?: { display_name?: string };
+  };
+
+  // Tracks, paginated (100/page), preserving the playlist's custom order.
+  const tracks: ExportedTrack[] = [];
+  let position = 0;
+  let url: string | null =
+    `${SPOTIFY_API_BASE}/playlists/${playlistId}/tracks` +
+    `?limit=100&fields=next,items(track(type,name,artists(name)))`;
+  while (url) {
+    const res: Response = await fetch(url, { headers: auth });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      console.error(`[spotify] playlist tracks ${res.status}:`, detail);
+      throw new Error(`spotify_${res.status}`);
+    }
+    const data = (await res.json()) as {
+      next: string | null;
+      items: {
+        track: { type?: string; name?: string; artists?: { name: string }[] } | null;
+      }[];
+    };
+    for (const item of data.items ?? []) {
+      const tr = item?.track;
+      // Skip removed entries and non-track items (e.g. podcast episodes).
+      if (!tr || (tr.type && tr.type !== "track")) continue;
+      const artist =
+        (tr.artists ?? [])
+          .map((a) => a.name)
+          .filter(Boolean)
+          .join(", ") || "Unknown artist";
+      position += 1;
+      tracks.push({ position, artist, title: tr.name ?? "Unknown title" });
+    }
+    url = data.next;
+  }
+
+  return {
+    id: meta.id ?? playlistId,
+    name: meta.name ?? "Playlist",
+    owner: meta.owner?.display_name ?? "",
+    tracks,
+  };
+}
+
 /** The JSON shape the frontend's now-playing UI consumes (one source of truth
  *  for both the one-shot GET and the SSE stream). */
 export function toNowPlayingPayload(np: NowPlayingResult) {
