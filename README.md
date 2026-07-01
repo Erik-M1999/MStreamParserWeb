@@ -139,13 +139,15 @@ Eine Signatur nachzubauen ist ebenfalls unmöglich, der JWT_SECRET liegt nur im 
 2. **Auth und Ownership**: Das Scoping von `authenticate` + `userId` muss richtig sitzen, sonst kann es dazu führen, dass die gespeicher Elemente sowie Tokens für andere User sichtbar werden. Gleiche Lücke wie von Session 05 Security.
 
 ### 07)
-Architekturentscheidung: SSE
+**Architekturentscheidung: SSE**
+
 In der Anwendung ist ein User in seiner Session isoliert, es gibt keine User -> User Kommunikation, sondern nur Server -> Client. Da wir aber ein "Listener" haben, das anzeigt was gerade auf Spotify spielt, wäre das ein Feature für SEE.
 
 Da Spotifys API leider kein Push hat, wird das abfragen über serverseitiges Polling gemacht und das Frontend bekommt die Daten dann in Echtzeit sobald es bereit ist. 
 
 ### 08)
 Gleiches Szenario wie bei 07:
+
 Die App handelt sich um Single-Users. Es gibt keine User -> User Kommunikation. Allerdings werden zwei Benachritigungs Events nötig sein:
 
 1. Registrierung und Bestätigung
