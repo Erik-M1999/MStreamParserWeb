@@ -5,6 +5,21 @@ Includes web based integration of ImmersiveMusicDisplay (https://github.com/Erik
 
 **Current TODO\*:**
 
+**Improvements\*:**
+
+**Interface:**
+- Check for all inconsistent colour (Any success should be coloured green)
+- Library throws Error when User has no Folder or File saved yet
+
+**External API:**
+- Make 3Ds Max Pre-Render Script communicate with .ini that's set by the UI
+- E-Mail Notification when a new API Token has been set
+- Integrate File Browser for UI Tool
+
+**Playlist Exporter:**
+- Playlist should have different sort options. By default should be recently added (This also applies to IMD)
+- Playlists need cover arts
+
 **Roadmap:**
 
 - [X] Implement basic Web and Spotify API connection.
@@ -12,10 +27,10 @@ Includes web based integration of ImmersiveMusicDisplay (https://github.com/Erik
 - [X] Integrate and expand ImmersiveMusicDisplay functionality.
 - [X] Set up optional login with databases.
 - [X] Testing
-- [ ] Revamp Interface design
-- [ ] Set up API for external tool access. Test it with 3Ds Max.
-- [ ] Add parser to convert playlists into plain .txt or .csv files.
-- [ ] Trial a different API, especially last.fm.
+- [X] Revamp Interface design (Can be improved further)
+- [X] Set up API for external tool access. Test it with 3Ds Max. (Can be improved further)
+- [X] Add parser to convert playlists into plain .txt or .csv files. (can be improved further)
+- [ ] Trial a different API: last.fm.
 
 -> When repo has reached a working state with all mandatory function implemented, add other APIs.
 
