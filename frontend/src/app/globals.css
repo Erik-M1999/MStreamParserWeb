@@ -1,1 +1,119 @@
 @import "tailwindcss";
+
+/*
+ * "High Performance Minimalist" design system (see DESIGN.md).
+ * Light, high-key white theme, sharp red accent, 0px-radius geometry,
+ * Hanken Grotesk typography. Colors are exposed as Tailwind v4 theme tokens
+ * so they become first-class utilities (bg-surface, text-primary, border-outline…).
+ */
+@theme {
+  /* Type — Hanken Grotesk is injected via next/font in layout.tsx. */
+  --font-sans: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
+
+  /* Sharp corners everywhere: neutralize the default radius scale. */
+  --radius-xs: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+  --radius-3xl: 0px;
+
+  /* Surfaces */
+  --color-surface: #f9f9f9;
+  --color-surface-dim: #dadada;
+  --color-surface-bright: #f9f9f9;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f3f3f4;
+  --color-surface-container: #eeeeee;
+  --color-surface-container-high: #e8e8e8;
+  --color-surface-container-highest: #e2e2e2;
+  --color-surface-variant: #e2e2e2;
+  --color-inverse-surface: #2f3131;
+  --color-inverse-on-surface: #f0f1f1;
+
+  --color-on-surface: #1a1c1c;
+  --color-on-surface-variant: #5e3f3b;
+
+  /* Outlines (used as 1px borders in place of shadows) */
+  --color-outline: #926e6a;
+  --color-outline-variant: #e8bdb7;
+
+  /* Primary (aggressive red accent) */
+  --color-primary: #a3000a;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #d10011;
+  --color-on-primary-container: #ffe0dc;
+  --color-inverse-primary: #ffb4aa;
+  --color-surface-tint: #c0000f;
+
+  /* Secondary / tertiary (near-neutral grays) */
+  --color-secondary: #5f5e5f;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #e2dfe0;
+  --color-on-secondary-container: #636263;
+  --color-tertiary: #4e4f4f;
+  --color-on-tertiary: #ffffff;
+  --color-tertiary-container: #666767;
+  --color-on-tertiary-container: #e6e6e6;
+
+  /* Functional */
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
+
+  --color-background: #f9f9f9;
+  --color-on-background: #1a1c1c;
+}
+
+/* Global base: light surface + on-surface text, sharp everything. */
+body {
+  background-color: var(--color-surface);
+  color: var(--color-on-surface);
+}
+
+/*
+ * DESIGN.md typography scale as helper classes. Bold headline weights anchor the
+ * airy layout; uppercase labels reinforce the technical/instrumental feel.
+ */
+.type-display-lg {
+  font-size: 48px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+.type-headline-lg {
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.type-headline-md {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.type-body-lg {
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+.type-label-bold {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+}
+.type-label-sm {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 640px) {
+  .type-display-lg {
+    font-size: 28px;
+    letter-spacing: normal;
+  }
+}

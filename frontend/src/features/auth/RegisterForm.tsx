@@ -4,6 +4,9 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { BACKEND_URL } from "@/shared/config";
 
+const inputClasses =
+  "mt-1 w-full border border-outline bg-surface-container-lowest px-3 py-2 text-sm text-on-surface outline-none focus:border-primary";
+
 export default function RegisterForm() {
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
@@ -40,13 +43,13 @@ export default function RegisterForm() {
   if (done) {
     return (
       <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6">
-        <h1 className="text-2xl font-semibold text-green-400">Account created</h1>
-        <p className="mt-2 text-sm text-neutral-400">
+        <h1 className="type-headline-lg text-primary">Account created</h1>
+        <p className="mt-2 type-body-lg text-on-surface-variant">
           You can now log in with your username and password.
         </p>
         <Link
           href="/login"
-          className="mt-6 inline-block rounded-md bg-green-600 px-4 py-2 text-center text-sm font-medium text-white hover:bg-green-500"
+          className="mt-8 inline-block bg-primary px-4 py-2 text-center type-label-bold uppercase text-on-primary transition-colors hover:bg-primary-container"
         >
           Go to log in
         </Link>
@@ -56,38 +59,38 @@ export default function RegisterForm() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6">
-      <h1 className="text-2xl font-semibold">Create an account</h1>
-      <p className="mt-1 text-sm text-neutral-400">
+      <h1 className="type-headline-lg text-on-surface">Create an account</h1>
+      <p className="mt-2 type-body-lg text-on-surface-variant">
         Save templates and connect APIs across sessions.
       </p>
 
-      <form onSubmit={onSubmit} className="mt-6 space-y-4">
+      <form onSubmit={onSubmit} className="mt-8 space-y-4">
         <label className="block">
-          <span className="text-sm text-neutral-400">Email</span>
+          <span className="type-label-sm text-on-surface-variant">Email</span>
           <input
             type="email"
             required
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="mt-1 w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-neutral-500"
+            className={inputClasses}
           />
         </label>
 
         <label className="block">
-          <span className="text-sm text-neutral-400">Username</span>
+          <span className="type-label-sm text-on-surface-variant">Username</span>
           <input
             type="text"
             required
             autoComplete="username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            className="mt-1 w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-neutral-500"
+            className={inputClasses}
           />
         </label>
 
         <label className="block">
-          <span className="text-sm text-neutral-400">Password</span>
+          <span className="type-label-sm text-on-surface-variant">Password</span>
           <input
             type="password"
             required
@@ -95,15 +98,15 @@ export default function RegisterForm() {
             autoComplete="new-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="mt-1 w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-neutral-500"
+            className={inputClasses}
           />
-          <span className="mt-1 block text-xs text-neutral-500">
+          <span className="mt-1 block type-label-sm text-on-surface-variant">
             At least 8 characters.
           </span>
         </label>
 
         {error && (
-          <p className="rounded-md border border-red-900/60 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          <p className="border border-error bg-error-container px-3 py-2 text-sm text-on-error-container">
             {error}
           </p>
         )}
@@ -111,19 +114,22 @@ export default function RegisterForm() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-500 disabled:cursor-not-allowed disabled:opacity-50"
+          className="w-full bg-primary px-4 py-2 type-label-bold uppercase text-on-primary transition-colors hover:bg-primary-container disabled:cursor-not-allowed disabled:opacity-50"
         >
           {loading ? "Creating…" : "Register"}
         </button>
       </form>
 
-      <p className="mt-6 text-sm text-neutral-400">
+      <p className="mt-8 text-sm text-on-surface-variant">
         Already have an account?{" "}
-        <Link href="/login" className="text-green-400 hover:underline">
+        <Link href="/login" className="text-primary hover:underline">
           Log in
         </Link>
       </p>
-      <Link href="/" className="mt-2 text-xs text-neutral-500 hover:text-neutral-300">
+      <Link
+        href="/"
+        className="mt-2 type-label-sm text-on-surface-variant hover:text-on-surface"
+      >
         ← Back to dashboard
       </Link>
     </main>

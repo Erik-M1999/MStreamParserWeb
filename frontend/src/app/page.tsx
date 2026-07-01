@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import TopBar from "@/features/dashboard/TopBar";
+import Sidebar from "@/features/dashboard/Sidebar";
 import ToolsSection from "@/features/dashboard/ToolsSection";
 import { BACKEND_URL } from "@/shared/config";
 import type { ApiConnection, SpotifyProfile, Tool } from "@/shared/types";
@@ -39,11 +39,11 @@ export default async function HomePage() {
     profileRes && profileRes.ok ? await profileRes.json() : null;
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-5xl flex-col">
-      <TopBar connections={connections} loggedIn={loggedIn} />
-      <main className="flex-1 px-6 py-10">
-        <h1 className="text-2xl font-semibold">Dashboard</h1>
-        <p className="mt-1 text-sm text-neutral-400">
+    <div className="flex min-h-screen flex-col md:flex-row">
+      <Sidebar connections={connections} loggedIn={loggedIn} />
+      <main className="flex-1 px-8 py-12 md:px-16">
+        <h1 className="type-display-lg text-on-surface">Dashboard</h1>
+        <p className="mt-3 type-body-lg text-on-surface-variant">
           Available tools for processing your music streaming data.
         </p>
 
@@ -54,25 +54,25 @@ export default async function HomePage() {
         />
 
         {profile && (
-          <section className="mt-10 rounded-lg border border-green-900/50 bg-green-500/5 p-5">
-            <h2 className="text-sm font-medium text-green-400">
+          <section className="mt-12 border border-outline-variant bg-surface-container-lowest p-6">
+            <h2 className="type-label-sm text-primary">
               Spotify connected — test fetch of /v1/me
             </h2>
-            <dl className="mt-3 grid grid-cols-[8rem_1fr] gap-y-1 text-sm">
-              <dt className="text-neutral-500">Display name</dt>
-              <dd>{profile.display_name ?? "—"}</dd>
-              <dt className="text-neutral-500">User ID</dt>
-              <dd>{profile.id}</dd>
+            <dl className="mt-4 grid grid-cols-[8rem_1fr] gap-y-2 text-sm">
+              <dt className="type-label-sm text-on-surface-variant">Display name</dt>
+              <dd className="text-on-surface">{profile.display_name ?? "—"}</dd>
+              <dt className="type-label-sm text-on-surface-variant">User ID</dt>
+              <dd className="text-on-surface">{profile.id}</dd>
               {profile.email && (
                 <>
-                  <dt className="text-neutral-500">Email</dt>
-                  <dd>{profile.email}</dd>
+                  <dt className="type-label-sm text-on-surface-variant">Email</dt>
+                  <dd className="text-on-surface">{profile.email}</dd>
                 </>
               )}
               {profile.product && (
                 <>
-                  <dt className="text-neutral-500">Plan</dt>
-                  <dd className="capitalize">{profile.product}</dd>
+                  <dt className="type-label-sm text-on-surface-variant">Plan</dt>
+                  <dd className="capitalize text-on-surface">{profile.product}</dd>
                 </>
               )}
             </dl>

@@ -11,24 +11,25 @@ export default function ToolCard({
 
   const inner = (
     <>
-      <div className="flex items-center justify-between">
-        <h2 className="font-medium">{tool.name}</h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="type-headline-md text-on-surface">{tool.name}</h2>
         <span
-          className={`rounded-full px-2 py-0.5 text-xs ${
+          className={`px-2 py-1 type-label-sm ${
             isAvailable
-              ? "bg-green-500/15 text-green-400"
-              : "bg-neutral-700/40 text-neutral-400"
+              ? "bg-primary text-on-primary"
+              : "bg-surface-container-high text-on-surface-variant"
           }`}
         >
           {isAvailable ? "Available" : "Coming soon"}
         </span>
       </div>
-      <p className="mt-2 text-sm text-neutral-400">{tool.description}</p>
+      <p className="mt-3 type-body-lg text-on-surface-variant">{tool.description}</p>
     </>
   );
 
+  // Flat, sharp-cornered white card with a 1px outline (no shadow — DESIGN.md).
   const baseClasses =
-    "block w-full rounded-lg border border-neutral-800 bg-neutral-900/50 p-5 text-left";
+    "block w-full border border-outline-variant bg-surface-container-lowest p-6 text-left";
 
   // Functional tools open in a modal; others are static cards.
   if (onOpen) {
@@ -37,7 +38,7 @@ export default function ToolCard({
         type="button"
         onClick={onOpen}
         data-cy={`tool-${tool.id}`}
-        className={`${baseClasses} transition-colors hover:border-neutral-600 hover:bg-neutral-900`}
+        className={`${baseClasses} transition-colors hover:border-primary`}
       >
         {inner}
       </button>
