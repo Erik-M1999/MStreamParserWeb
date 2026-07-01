@@ -8,16 +8,23 @@ import {
 import { fillTemplate, type TemplateFill } from "../../svgTemplate.js";
 import { HttpError } from "../../shared/errors.js";
 
-const MAX_PNG_WIDTH = 10000; // guard against absurd output sizes
-
 /** Rasterizes a (filled) SVG to a PNG Buffer — the server-side replacement for
- *  the old Inkscape step. Optional output width in px (height keeps aspect),
- *  else the SVG's natural size. Covers are inlined data URIs, so no network. */
-export function svgToPng(svg: string, width?: number): Buffer {
-  const fitTo: { mode: "width"; value: number } | { mode: "original" } =
-    width && Number.isInteger(width) && width > 0
-      ? { mode: "width", value: Math.min(width, MAX_PNG_WIDTH) }
-      : { mode: "original" };
+ *  the old Inkscape step. `longest` sets the output's LONGEST side in px,
+ *  capped at the SVG's natural size (never upscales); omit/0 = natural size.
+ *  Covers are inlined data URIs, so no network. */
+export function svgToPng(svg: string, longest?: number): Buffer {
+  const probe = new Resvg(svg);
+  const natLongest = Math.max(probe.width, probe.height);
+  const target =
+    longest && longest > 0 ? Math.min(longest, natLongest) : natLongest;
+
+  // At or above natural size → render as-is (the cap is the original size).
+  if (target >= natLongest) return probe.render().asPng();
+
+  const fitTo: { mode: "width"; value: number } | { mode: "height"; value: number } =
+    probe.width >= probe.height
+      ? { mode: "width", value: target }
+      : { mode: "height", value: target };
   return new Resvg(svg, { fitTo }).render().asPng();
 }
 
