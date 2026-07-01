@@ -42,15 +42,18 @@ export default function AuthStatus() {
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="border border-outline-variant bg-surface-container-lowest px-3 py-2">
+      {/* The account block links to /account for profile + API keys management. */}
+      <Link
+        href="/account"
+        data-cy="user-name"
+        title="Account & API keys"
+        className="block border border-outline-variant bg-surface-container-lowest px-3 py-2 transition-colors hover:border-primary"
+      >
         <span className="block type-label-sm text-on-surface-variant">Account</span>
-        <span
-          data-cy="user-name"
-          className="block truncate type-label-bold text-on-surface"
-        >
+        <span className="block truncate type-label-bold text-on-surface">
           {me.username}
         </span>
-      </div>
+      </Link>
       <button
         type="button"
         data-cy="logout-btn"

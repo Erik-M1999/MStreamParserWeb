@@ -76,6 +76,47 @@ export async function getTemplate(userId: number, id: number) {
   return t;
 }
 
+/** Lightweight listing (no SVG body) with each template's folder path — e.g.
+ *  for the external API's picker, so a flat dropdown can show the hierarchy. */
+export async function listTemplatesWithPath(userId: number) {
+  const [folders, templates] = await Promise.all([
+    prisma.folder.findMany({
+      where: { userId },
+      select: { id: true, name: true, parentId: true },
+    }),
+    prisma.template.findMany({
+      where: { userId },
+      select: { id: true, name: true, mode: true, folderId: true },
+    }),
+  ]);
+
+  const byId = new Map(folders.map((f) => [f.id, f]));
+  const pathCache = new Map<number, string>();
+  const pathOf = (id: number): string => {
+    const cached = pathCache.get(id);
+    if (cached !== undefined) return cached;
+    const f = byId.get(id);
+    if (!f) return "";
+    const parent = f.parentId != null ? pathOf(f.parentId) : "";
+    const path = parent ? `${parent}/${f.name}` : f.name;
+    pathCache.set(id, path);
+    return path;
+  };
+
+  return templates
+    .map((t) => ({
+      id: t.id,
+      name: t.name,
+      mode: t.mode,
+      path: t.folderId != null ? pathOf(t.folderId) : "",
+    }))
+    .sort((a, b) =>
+      `${a.path}/${a.name}`.localeCompare(`${b.path}/${b.name}`, undefined, {
+        sensitivity: "base",
+      }),
+    );
+}
+
 export async function createTemplate(userId: number, body: Body) {
   const { name, svg, mode } = parseTemplateBody(body);
   const folderId = await resolveFolder(userId, body.folderId);
