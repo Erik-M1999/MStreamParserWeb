@@ -37,7 +37,7 @@ export default function Sidebar({
                   key={api.id}
                   className="flex items-center gap-2 border border-outline-variant bg-surface-container-lowest px-3 py-2"
                 >
-                  <span aria-hidden className="h-2 w-2 rounded-full bg-primary" />
+                  <span aria-hidden className="h-2 w-2 rounded-full bg-success" />
                   <span className="type-label-bold text-on-surface">{api.name}</span>
                   <span className="ml-auto type-label-sm text-on-surface-variant">
                     Connected

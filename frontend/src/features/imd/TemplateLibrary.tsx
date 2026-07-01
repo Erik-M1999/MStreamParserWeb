@@ -470,8 +470,8 @@ export default function TemplateLibrary({
             setSelected({ type: "template", key: t.key });
             openMenu(e, { kind: "template", key: t.key });
           }}
-          className={`flex cursor-grab items-center justify-between gap-1 rounded px-1 py-1 hover:bg-neutral-800 ${
-            sel ? "bg-neutral-800" : ""
+          className={`flex cursor-grab items-center justify-between gap-1 rounded px-1 py-1 hover:bg-surface-container-high ${
+            sel ? "bg-surface-container-high" : ""
           }`}
         >
           {isRenaming ? (
@@ -487,19 +487,19 @@ export default function TemplateLibrary({
                 if (e.key === "Escape") setRenaming(null);
               }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full rounded border border-neutral-600 bg-neutral-900 px-1 text-xs text-neutral-100"
+              className="w-full rounded border border-outline bg-surface-container-lowest px-1 text-xs text-on-surface"
             />
           ) : (
             <>
-              <span className="truncate text-neutral-300">📄 {t.name}</span>
+              <span className="truncate text-on-surface">📄 {t.name}</span>
               <span className="flex shrink-0 gap-1">
                 {t.modes.map((m) => (
                   <span
                     key={m}
                     className={`rounded px-1 text-[10px] ${
                       m === currentMode
-                        ? "bg-green-500/20 text-green-400"
-                        : "bg-neutral-800 text-neutral-400"
+                        ? "bg-primary/10 text-primary"
+                        : "bg-surface-container-high text-on-surface-variant"
                     }`}
                   >
                     {MODE_LABEL[m] ?? m}
@@ -538,11 +538,11 @@ export default function TemplateLibrary({
           onDrop={(e) => onFolderDrop(e, path)}
           onDragOver={(e) => allowDrop(e, path)}
           style={{ paddingLeft: depth * 12 + 4 }}
-          className={`flex cursor-pointer items-center gap-1 rounded px-1 py-1 hover:bg-neutral-800 ${
-            sel ? "bg-neutral-800" : ""
+          className={`flex cursor-pointer items-center gap-1 rounded px-1 py-1 hover:bg-surface-container-high ${
+            sel ? "bg-surface-container-high" : ""
           }`}
         >
-          <span className="w-3 text-neutral-500">
+          <span className="w-3 text-on-surface-variant">
             {hasContent ? (isOpen ? "▾" : "▸") : ""}
           </span>
           {isRenaming ? (
@@ -558,10 +558,10 @@ export default function TemplateLibrary({
                 if (e.key === "Escape") setRenaming(null);
               }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full rounded border border-neutral-600 bg-neutral-900 px-1 text-xs text-neutral-100"
+              className="w-full rounded border border-outline bg-surface-container-lowest px-1 text-xs text-on-surface"
             />
           ) : (
-            <span className="truncate text-neutral-300">📁 {folderName(path)}</span>
+            <span className="truncate text-on-surface">📁 {folderName(path)}</span>
           )}
         </div>
         {isOpen && hasContent && (
@@ -575,9 +575,9 @@ export default function TemplateLibrary({
   }
 
   return (
-    <aside className="flex w-60 shrink-0 flex-col border-r border-neutral-800 pr-3">
+    <aside className="flex w-60 shrink-0 flex-col border-r border-outline-variant pr-3">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
           Library
         </h3>
         <button
@@ -591,7 +591,7 @@ export default function TemplateLibrary({
             )
           }
           title="New folder (inside the selected folder, else at root)"
-          className="rounded border border-neutral-700 px-2 py-0.5 text-xs text-neutral-300 hover:border-neutral-500"
+          className="rounded border border-outline px-2 py-0.5 text-xs text-on-surface hover:border-primary"
         >
           ＋ Folder
         </button>
@@ -605,12 +605,12 @@ export default function TemplateLibrary({
         onDrop={(e) => onFolderDrop(e, "")}
         onDragOver={(e) => allowDrop(e, "")}
       >
-        {error && <p className="text-xs text-red-400">{error}</p>}
+        {error && <p className="text-xs text-error">{error}</p>}
         {childFolders(null).map((f) => renderFolder(f, 0))}
         {templatesIn("").map((t) => renderTemplate(t, 0))}
       </div>
 
-      <p className="mt-3 border-t border-neutral-800 pt-2 text-[10px] text-neutral-600">
+      <p className="mt-3 border-t border-outline-variant pt-2 text-[10px] text-on-surface-variant">
         {loggedIn
           ? "Your folders and templates are saved to your account."
           : "Log in to save your own folders and templates."}
@@ -619,7 +619,7 @@ export default function TemplateLibrary({
       {menu && (
         <div
           data-cy="context-menu"
-          className="fixed z-[60] min-w-[9rem] rounded-md border border-neutral-700 bg-neutral-900 py-1 text-sm shadow-xl"
+          className="fixed z-[60] min-w-[9rem] rounded-md border border-outline bg-surface-container-lowest py-1 text-sm shadow-xl"
           style={{ left: menu.x, top: menu.y }}
           onClick={(e) => e.stopPropagation()}
         >
@@ -631,7 +631,7 @@ export default function TemplateLibrary({
                 it.action();
                 setMenu(null);
               }}
-              className="block w-full px-3 py-1.5 text-left text-neutral-200 hover:bg-neutral-800"
+              className="block w-full px-3 py-1.5 text-left text-on-surface hover:bg-surface-container-high"
             >
               {it.label}
             </button>

@@ -405,27 +405,27 @@ export default function CurrentSongMode({
 
   if (!connected) {
     return (
-      <div className="rounded-lg border border-neutral-800 bg-neutral-900/50 p-6">
+      <div className="rounded-lg border border-outline-variant bg-surface-container-low p-6">
         {loggedIn ? (
           <>
-            <p className="text-sm text-neutral-300">
+            <p className="text-sm text-on-surface">
               Connect your Spotify account to use this tool.
             </p>
             <a
               href={`${BACKEND_URL}/api/auth/spotify/login`}
-              className="mt-4 inline-block rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-500"
+              className="mt-4 inline-block rounded-md bg-primary px-4 py-2 text-sm font-medium text-on-primary hover:bg-primary-container"
             >
               Connect Spotify
             </a>
           </>
         ) : (
           <>
-            <p className="text-sm text-neutral-300">
+            <p className="text-sm text-on-surface">
               Log in to connect Spotify and use this tool.
             </p>
             <a
               href="/login"
-              className="mt-4 inline-block rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-500"
+              className="mt-4 inline-block rounded-md bg-primary px-4 py-2 text-sm font-medium text-on-primary hover:bg-primary-container"
             >
               Log in
             </a>
@@ -455,18 +455,18 @@ export default function CurrentSongMode({
 
   return (
     <div className="space-y-6">
-      <div className="text-sm text-neutral-400">
+      <div className="text-sm text-on-surface-variant">
         {!nowPlaying?.playing ? (
           "Nothing is playing on Spotify right now."
         ) : nowPlaying.supported === false ? (
-          <span className="text-amber-400">
+          <span className="text-amber-600">
             Spotify is playing {unsupportedLabel(nowPlaying.type)} — only songs
             are supported.
           </span>
         ) : (
           <>
             Now playing:{" "}
-            <span className="text-neutral-100">
+            <span className="text-on-surface">
               {nowPlaying.artist} — {nowPlaying.title}
             </span>
           </>
@@ -481,8 +481,8 @@ export default function CurrentSongMode({
         onDragLeave={onDragLeave}
         className={`rounded-lg border-2 border-dashed p-6 text-center transition-colors ${
           dragging
-            ? "border-green-500 bg-green-500/10"
-            : "border-neutral-700 bg-neutral-900/30"
+            ? "border-primary bg-primary/5"
+            : "border-outline bg-surface-container-low"
         }`}
       >
         {templateSvg ? (
@@ -496,11 +496,11 @@ export default function CurrentSongMode({
               🗎
             </div>
             <p
-              className={`text-sm ${loadedOk ? "text-green-400" : "text-amber-400"}`}
+              className={`text-sm ${loadedOk ? "text-primary" : "text-amber-600"}`}
             >
               Loaded: {templateName}
             </p>
-            <label className="cursor-pointer text-xs text-neutral-400 underline hover:text-neutral-200">
+            <label className="cursor-pointer text-xs text-on-surface-variant underline hover:text-on-surface">
               Drop or browse to replace
               <input
                 type="file"
@@ -512,11 +512,11 @@ export default function CurrentSongMode({
           </div>
         ) : (
           <>
-            <p className="text-sm text-neutral-300">
+            <p className="text-sm text-on-surface">
               Drag &amp; drop an SVG template here
             </p>
-            <p className="mt-1 text-xs text-neutral-500">or</p>
-            <label className="mt-2 inline-block cursor-pointer rounded-md border border-neutral-700 px-4 py-2 text-sm hover:border-neutral-500">
+            <p className="mt-1 text-xs text-on-surface-variant">or</p>
+            <label className="mt-2 inline-block cursor-pointer rounded-md border border-outline px-4 py-2 text-sm hover:border-primary">
               Browse files
               <input
                 type="file"
@@ -534,7 +534,7 @@ export default function CurrentSongMode({
           <button
             type="button"
             onClick={() => setEditorOpen((o) => !o)}
-            className="rounded-md border border-neutral-700 px-4 py-2 text-sm hover:border-neutral-500"
+            className="rounded-md border border-outline px-4 py-2 text-sm hover:border-primary"
           >
             {editorOpen ? "Close tag editor" : "Edit tags"}
           </button>
@@ -557,12 +557,12 @@ export default function CurrentSongMode({
             type="button"
             disabled={loading}
             onClick={() => render(templateSvg)}
-            className="rounded-md bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-900 transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-on-primary transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
           >
             {loading ? "Rendering…" : "Re-render with current song"}
           </button>
           {songChanged && (
-            <p className="text-xs text-amber-400">
+            <p className="text-xs text-amber-600">
               The playing song changed — re-render to update the preview.
             </p>
           )}
@@ -570,14 +570,14 @@ export default function CurrentSongMode({
       )}
 
       {error && (
-        <div className="rounded-md border border-red-900/60 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        <div className="rounded-md border border-error bg-error-container px-4 py-3 text-sm text-on-error-container">
           {error}
         </div>
       )}
 
       {previewUrl && rendered && (
-        <div className="rounded-lg border border-neutral-800 bg-neutral-900/50 p-4">
-          <p className="mb-3 text-xs uppercase tracking-wider text-neutral-500">
+        <div className="rounded-lg border border-outline-variant bg-surface-container-low p-4">
+          <p className="mb-3 text-xs uppercase tracking-wider text-on-surface-variant">
             Preview (cropped to artwork)
           </p>
           {/* Rendered as <img> (not inline) so an uploaded SVG can't run scripts. */}
@@ -590,12 +590,12 @@ export default function CurrentSongMode({
 
           {/* Long-text handling (title + artist share width/fade; randomize is per-field) */}
           {hasTextField && (
-            <div className="mt-4 space-y-3 border-t border-neutral-800 pt-4">
+            <div className="mt-4 space-y-3 border-t border-outline-variant pt-4">
               <label
                 className={`flex items-center gap-2 text-sm ${
                   titleOverflow || artistOverflow
-                    ? "text-neutral-300"
-                    : "cursor-not-allowed text-neutral-600"
+                    ? "text-on-surface"
+                    : "cursor-not-allowed text-on-surface-variant"
                 }`}
               >
                 <input
@@ -610,7 +610,7 @@ export default function CurrentSongMode({
               {longTextActive && (
                 <>
                   <div className="flex flex-wrap items-end gap-3">
-                    <label className="flex flex-col text-xs text-neutral-500">
+                    <label className="flex flex-col text-xs text-on-surface-variant">
                       Left fade (%)
                       <input
                         type="number"
@@ -618,10 +618,10 @@ export default function CurrentSongMode({
                         step={0.1}
                         value={fadePct}
                         onChange={(e) => setFadePct(clampPct(e.target.value))}
-                        className="mt-1 w-24 rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-sm text-neutral-100"
+                        className="mt-1 w-24 rounded-md border border-outline bg-surface-container-lowest px-2 py-1.5 text-sm text-on-surface"
                       />
                     </label>
-                    <label className="flex flex-col text-xs text-neutral-500">
+                    <label className="flex flex-col text-xs text-on-surface-variant">
                       Right fade (%)
                       <input
                         type="number"
@@ -629,7 +629,7 @@ export default function CurrentSongMode({
                         step={0.1}
                         value={widthPct}
                         onChange={(e) => setWidthPct(clampPct(e.target.value))}
-                        className="mt-1 w-24 rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-sm text-neutral-100"
+                        className="mt-1 w-24 rounded-md border border-outline bg-surface-container-lowest px-2 py-1.5 text-sm text-on-surface"
                       />
                     </label>
                   </div>
@@ -640,7 +640,7 @@ export default function CurrentSongMode({
                         type="button"
                         onClick={() => randomizeSlot("title")}
                         disabled={!titleOverflow}
-                        className="rounded-md border border-neutral-700 px-4 py-2 text-sm hover:border-neutral-500 disabled:cursor-not-allowed disabled:opacity-40"
+                        className="rounded-md border border-outline px-4 py-2 text-sm hover:border-primary disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         Randomize title
                       </button>
@@ -650,12 +650,12 @@ export default function CurrentSongMode({
                         type="button"
                         onClick={() => randomizeSlot("artist")}
                         disabled={!artistOverflow}
-                        className="rounded-md border border-neutral-700 px-4 py-2 text-sm hover:border-neutral-500 disabled:cursor-not-allowed disabled:opacity-40"
+                        className="rounded-md border border-outline px-4 py-2 text-sm hover:border-primary disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         Randomize artist
                       </button>
                     )}
-                    <span className="text-xs text-neutral-500">
+                    <span className="text-xs text-on-surface-variant">
                       {titleOverflow || artistOverflow
                         ? "Overflowing fields can be panned."
                         : "Text fits — no offset needed."}
@@ -667,22 +667,22 @@ export default function CurrentSongMode({
           )}
 
           {/* Downloads — always export the FULL document, not the crop. */}
-          <div className="mt-4 space-y-3 border-t border-neutral-800 pt-4">
+          <div className="mt-4 space-y-3 border-t border-outline-variant pt-4">
             <button
               type="button"
               onClick={downloadSvg}
-              className="rounded-md border border-neutral-700 px-4 py-2 text-sm hover:border-neutral-500"
+              className="rounded-md border border-outline px-4 py-2 text-sm hover:border-primary"
             >
               Download SVG
             </button>
 
             <div className="flex flex-wrap items-end gap-3">
-              <label className="flex flex-col text-xs text-neutral-500">
+              <label className="flex flex-col text-xs text-on-surface-variant">
                 PNG resolution
                 <select
                   value={pngScale}
                   onChange={(e) => setPngScale(e.target.value as PngScale)}
-                  className="mt-1 rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-sm text-neutral-100"
+                  className="mt-1 rounded-md border border-outline bg-surface-container-lowest px-2 py-1.5 text-sm text-on-surface"
                 >
                   <option value="original">
                     Original ({Math.round(rendered.width)}×{Math.round(rendered.height)})
@@ -697,7 +697,7 @@ export default function CurrentSongMode({
 
               {pngScale === "custom" && (
                 <div className="flex items-end gap-1">
-                  <label className="flex flex-col text-xs text-neutral-500">
+                  <label className="flex flex-col text-xs text-on-surface-variant">
                     Width
                     <input
                       type="number"
@@ -705,11 +705,11 @@ export default function CurrentSongMode({
                       max={MAX_PX}
                       value={customW}
                       onChange={(e) => onCustomWidth(e.target.value)}
-                      className="mt-1 w-24 rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-sm text-neutral-100"
+                      className="mt-1 w-24 rounded-md border border-outline bg-surface-container-lowest px-2 py-1.5 text-sm text-on-surface"
                     />
                   </label>
-                  <span className="pb-2 text-neutral-500">×</span>
-                  <label className="flex flex-col text-xs text-neutral-500">
+                  <span className="pb-2 text-on-surface-variant">×</span>
+                  <label className="flex flex-col text-xs text-on-surface-variant">
                     Height
                     <input
                       type="number"
@@ -717,7 +717,7 @@ export default function CurrentSongMode({
                       max={MAX_PX}
                       value={customH}
                       onChange={(e) => onCustomHeight(e.target.value)}
-                      className="mt-1 w-24 rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-sm text-neutral-100"
+                      className="mt-1 w-24 rounded-md border border-outline bg-surface-container-lowest px-2 py-1.5 text-sm text-on-surface"
                     />
                   </label>
                 </div>
@@ -727,7 +727,7 @@ export default function CurrentSongMode({
                 type="button"
                 onClick={downloadPng}
                 disabled={exporting}
-                className="rounded-md bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-900 disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-on-primary disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {exporting ? "Exporting…" : "Download PNG"}
               </button>
