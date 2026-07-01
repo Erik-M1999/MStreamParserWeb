@@ -498,7 +498,7 @@ export default function TemplateLibrary({
                     key={m}
                     className={`rounded px-1 text-[10px] ${
                       m === currentMode
-                        ? "bg-primary/10 text-primary"
+                        ? "bg-success/10 text-success"
                         : "bg-surface-container-high text-on-surface-variant"
                     }`}
                   >

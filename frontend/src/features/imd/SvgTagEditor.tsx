@@ -88,7 +88,7 @@ export default function SvgTagEditor({
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
               {missing.length === 0 ? (
-                <span className="rounded bg-primary/10 px-2 py-0.5 text-xs text-primary">
+                <span className="rounded bg-success/10 px-2 py-0.5 text-xs text-success">
                   ✓ all present
                 </span>
               ) : (

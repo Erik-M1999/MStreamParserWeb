@@ -323,7 +323,7 @@ export default function ModeWorkspace({
             >
               🗎
             </div>
-            <p className={`text-sm ${loadedOk ? "text-primary" : "text-amber-600"}`}>
+            <p className={`text-sm ${loadedOk ? "text-success" : "text-amber-600"}`}>
               Loaded: {templateName}
             </p>
             <label className="cursor-pointer text-xs text-on-surface-variant underline hover:text-on-surface">

@@ -496,7 +496,7 @@ export default function CurrentSongMode({
               🗎
             </div>
             <p
-              className={`text-sm ${loadedOk ? "text-primary" : "text-amber-600"}`}
+              className={`text-sm ${loadedOk ? "text-success" : "text-amber-600"}`}
             >
               Loaded: {templateName}
             </p>
