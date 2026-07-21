@@ -19,15 +19,23 @@ export interface PlaylistExport {
   id: string;
   name: string;
   owner: string;
+  coverUrl: string | null;
   tracks: ExportedTrack[];
 }
 
-/** The current user's saved/owned playlists. */
-export async function listPlaylists(): Promise<PlaylistSummary[]> {
-  const { playlists } = await authJson<{ playlists: PlaylistSummary[] }>(
-    "/api/spotify/playlists",
+export interface PlaylistPage {
+  playlists: PlaylistSummary[];
+  total: number;
+  hasMore: boolean;
+  /** Play-recency ranking (newest first); only populated on the first page. */
+  recentIds: string[];
+}
+
+/** One page of the current user's playlists (see listMyPlaylistsPage). */
+export function listPlaylistsPage(offset = 0, limit = 50): Promise<PlaylistPage> {
+  return authJson<PlaylistPage>(
+    `/api/spotify/playlists?offset=${offset}&limit=${limit}`,
   );
-  return playlists;
 }
 
 /** A single playlist's tracks in order, ready to format. */

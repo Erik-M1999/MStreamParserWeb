@@ -75,7 +75,9 @@ router.get("/spotify/me", authenticate, async (req: Request, res: Response) => {
 // Playlist Extractor: list the user's playlists, and export one to ordered tracks.
 router.get("/spotify/playlists", authenticate, async (req: Request, res: Response) => {
   try {
-    res.json({ playlists: await spotify.listMyPlaylists(userIdOf(req)) });
+    const offset = Math.max(Number(req.query.offset ?? 0) || 0, 0);
+    const limit = Math.min(Math.max(Number(req.query.limit ?? 50) || 50, 1), 50);
+    res.json(await spotify.listMyPlaylistsPage(userIdOf(req), offset, limit));
   } catch (err) {
     handleSpotifyError(err, res);
   }

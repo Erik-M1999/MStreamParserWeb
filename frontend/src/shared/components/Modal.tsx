@@ -6,11 +6,14 @@ export default function Modal({
   open,
   onClose,
   title,
+  size = "default",
   children,
 }: {
   open: boolean;
   onClose: () => void;
   title?: string;
+  /** "wide" gives tools with side-by-side panes more room to work in. */
+  size?: "default" | "wide";
   children: ReactNode;
 }) {
   useEffect(() => {
@@ -45,7 +48,11 @@ export default function Modal({
       />
 
       {/* Flat window: sharp corners, 1px outline, no shadow. */}
-      <div className="relative z-10 flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden border border-outline bg-surface-container-lowest">
+      <div
+        className={`relative z-10 flex max-h-[93vh] w-full ${
+          size === "wide" ? "max-w-[104rem]" : "max-w-5xl"
+        } flex-col overflow-hidden border border-outline bg-surface-container-lowest`}
+      >
         <div className="flex items-center justify-between border-b border-outline-variant px-6 py-4">
           <h2 className="type-label-bold uppercase text-on-surface">{title}</h2>
           <button

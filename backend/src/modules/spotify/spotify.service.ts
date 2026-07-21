@@ -27,7 +27,7 @@ const REDIRECT_URI =
   "http://127.0.0.1:3000/api/auth/spotify/callback";
 
 export const SCOPES =
-  "user-read-private user-read-email user-read-currently-playing user-read-playback-state playlist-read-private";
+  "user-read-private user-read-email user-read-currently-playing user-read-playback-state playlist-read-private user-read-recently-played";
 
 // Pending OAuth states: state -> userId (CSRF guard + per-user binding).
 const pendingStates = new Map<string, number>();
@@ -192,27 +192,13 @@ export interface PlaylistEntry {
   coverUrl: string | null;
 }
 
+/** The user's playlists, most recently *played* first (see listMyPlaylists). */
 export async function getPlaylists(userId: number, limit = 5): Promise<PlaylistEntry[]> {
-  const token = await getValidAccessToken(userId);
-  const res = await fetch(`${SPOTIFY_API_BASE}/me/playlists?limit=${limit}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    console.error(`[spotify] playlists ${res.status}:`, detail);
-    throw new Error(`spotify_${res.status}`);
-  }
-  const data = (await res.json()) as {
-    items: {
-      name?: string;
-      owner?: { display_name?: string };
-      images?: { url: string }[];
-    }[];
-  };
-  return (data.items ?? []).map((p) => ({
-    title: p?.name ?? "Untitled",
-    creator: p?.owner?.display_name ?? "",
-    coverUrl: p?.images?.[0]?.url ?? null,
+  const playlists = await listMyPlaylists(userId);
+  return playlists.slice(0, limit).map((p) => ({
+    title: p.name,
+    creator: p.owner,
+    coverUrl: p.coverUrl,
   }));
 }
 
@@ -234,7 +220,62 @@ interface RawPlaylist {
   tracks?: { total?: number };
 }
 
-/** All of the user's saved/owned playlists, paginated to completion. */
+function toPlaylistSummary(p: RawPlaylist): PlaylistSummary | null {
+  if (!p?.id) return null;
+  return {
+    id: p.id,
+    name: p.name ?? "Untitled",
+    owner: p.owner?.display_name ?? "",
+    trackCount: p.tracks?.total ?? 0,
+    coverUrl: p.images?.[0]?.url ?? null,
+  };
+}
+
+/** Playlist ids the user played most recently, newest first and de-duplicated.
+ *
+ *  Spotify can't sort /me/playlists by play activity, so we derive the order
+ *  from the play history: each recently-played track carries the context it was
+ *  played from, which for playlist listening is `spotify:playlist:<id>`.
+ *
+ *  Best-effort: returns [] if the history can't be read (e.g. 403 because the
+ *  connection predates the user-read-recently-played scope), so callers simply
+ *  fall back to the default library order instead of failing.
+ */
+async function getRecentlyPlayedPlaylistIds(userId: number): Promise<string[]> {
+  try {
+    const token = await getValidAccessToken(userId);
+    const res = await fetch(
+      `${SPOTIFY_API_BASE}/me/player/recently-played?limit=50`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (!res.ok) {
+      // 403 = scope not granted yet (user must reconnect Spotify).
+      if (res.status !== 403) {
+        console.error(`[spotify] recently-played ${res.status}`);
+      }
+      return [];
+    }
+    const data = (await res.json()) as {
+      items: { context: { type?: string; uri?: string } | null }[];
+    };
+    const ordered: string[] = [];
+    const seen = new Set<string>();
+    for (const item of data.items ?? []) {
+      const ctx = item?.context;
+      if (ctx?.type !== "playlist" || !ctx.uri) continue;
+      const m = ctx.uri.match(/^spotify:playlist:([A-Za-z0-9]+)$/);
+      if (!m || seen.has(m[1])) continue;
+      seen.add(m[1]);
+      ordered.push(m[1]);
+    }
+    return ordered;
+  } catch {
+    return []; // never let ordering break the caller
+  }
+}
+
+/** All of the user's saved/owned playlists, paginated to completion and sorted
+ *  most-recently-played first (unplayed ones keep their library order after). */
 export async function listMyPlaylists(userId: number): Promise<PlaylistSummary[]> {
   const token = await getValidAccessToken(userId);
   const out: PlaylistSummary[] = [];
@@ -250,18 +291,70 @@ export async function listMyPlaylists(userId: number): Promise<PlaylistSummary[]
     }
     const data = (await res.json()) as { items: RawPlaylist[]; next: string | null };
     for (const p of data.items ?? []) {
-      if (!p?.id) continue;
-      out.push({
-        id: p.id,
-        name: p.name ?? "Untitled",
-        owner: p.owner?.display_name ?? "",
-        trackCount: p.tracks?.total ?? 0,
-        coverUrl: p.images?.[0]?.url ?? null,
-      });
+      const s = toPlaylistSummary(p);
+      if (s) out.push(s);
     }
     url = data.next;
   }
-  return out;
+
+  // Rank by play recency. Ids not in the library (e.g. a public playlist played
+  // but not followed) are skipped; everything unplayed keeps its library order.
+  const recentIds = await getRecentlyPlayedPlaylistIds(userId);
+  if (recentIds.length === 0) return out;
+
+  const remaining = new Map(out.map((p) => [p.id, p]));
+  const recent: PlaylistSummary[] = [];
+  for (const id of recentIds) {
+    const p = remaining.get(id);
+    if (!p) continue;
+    recent.push(p);
+    remaining.delete(id);
+  }
+  return [...recent, ...out.filter((p) => remaining.has(p.id))];
+}
+
+export interface PlaylistPage {
+  playlists: PlaylistSummary[];
+  total: number;
+  hasMore: boolean;
+  /** Play-recency ranking (newest first). Sent only with the first page, so the
+   *  client can hoist recently-played playlists as later pages stream in. */
+  recentIds: string[];
+}
+
+/** One page of the user's playlists. Lets the UI paint the first rows quickly
+ *  and stream the rest, instead of waiting on a full library walk. */
+export async function listMyPlaylistsPage(
+  userId: number,
+  offset = 0,
+  limit = 50,
+): Promise<PlaylistPage> {
+  const token = await getValidAccessToken(userId);
+  const res = await fetch(
+    `${SPOTIFY_API_BASE}/me/playlists?limit=${limit}&offset=${offset}`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    console.error(`[spotify] playlists ${res.status}:`, detail);
+    throw new Error(`spotify_${res.status}`);
+  }
+  const data = (await res.json()) as {
+    items: RawPlaylist[];
+    total?: number;
+    next: string | null;
+  };
+  const playlists: PlaylistSummary[] = [];
+  for (const p of data.items ?? []) {
+    const s = toPlaylistSummary(p);
+    if (s) playlists.push(s);
+  }
+  return {
+    playlists,
+    total: data.total ?? playlists.length,
+    hasMore: Boolean(data.next),
+    recentIds: offset === 0 ? await getRecentlyPlayedPlaylistIds(userId) : [],
+  };
 }
 
 export interface ExportedTrack {
@@ -273,6 +366,7 @@ export interface PlaylistExport {
   id: string;
   name: string;
   owner: string;
+  coverUrl: string | null;
   tracks: ExportedTrack[];
 }
 
@@ -287,7 +381,7 @@ export async function getPlaylistExport(
 
   // Metadata (name/owner) for the filename + header.
   const metaRes = await fetch(
-    `${SPOTIFY_API_BASE}/playlists/${playlistId}?fields=id,name,owner(display_name)`,
+    `${SPOTIFY_API_BASE}/playlists/${playlistId}?fields=id,name,owner(display_name),images`,
     { headers: auth },
   );
   if (metaRes.status === 404) throw new Error("playlist_not_found");
@@ -300,6 +394,7 @@ export async function getPlaylistExport(
     id?: string;
     name?: string;
     owner?: { display_name?: string };
+    images?: { url: string }[];
   };
 
   // Tracks, paginated (100/page), preserving the playlist's custom order.
@@ -340,6 +435,7 @@ export async function getPlaylistExport(
     id: meta.id ?? playlistId,
     name: meta.name ?? "Playlist",
     owner: meta.owner?.display_name ?? "",
+    coverUrl: meta.images?.[0]?.url ?? null,
     tracks,
   };
 }

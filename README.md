@@ -16,9 +16,6 @@ Includes web based integration of ImmersiveMusicDisplay (https://github.com/Erik
 - E-Mail Notification when a new API Token has been set
 - Integrate File Browser for UI Tool
 
-**Playlist Exporter:**
-- Playlist should have different sort options. By default should be recently added (This also applies to IMD)
-- Playlists need cover arts
 
 **Roadmap:**
 

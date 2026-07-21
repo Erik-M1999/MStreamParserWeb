@@ -49,6 +49,7 @@ export default function ToolsSection({
         open={openToolId === "playlist-parser"}
         onClose={() => setOpenToolId(null)}
         title="Playlist Extractor"
+        size="wide"
       >
         <PlaylistExtractorTool connected={spotifyConnected} loggedIn={loggedIn} />
       </Modal>
