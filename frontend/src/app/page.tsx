@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import Sidebar from "@/features/dashboard/Sidebar";
-import ToolsSection from "@/features/dashboard/ToolsSection";
+import ToolsShell from "@/features/dashboard/ToolsShell";
+import Welcome from "@/features/welcome/Welcome";
 import { BACKEND_URL } from "@/shared/config";
 import type { ApiConnection, SpotifyProfile, Tool } from "@/shared/types";
 
@@ -41,19 +42,13 @@ export default async function HomePage() {
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
       <Sidebar connections={connections} loggedIn={loggedIn} profile={profile} />
-      <main className="flex-1 px-8 py-12 md:px-16">
-        <h1 className="type-display-lg text-on-surface">Dashboard</h1>
-        <p className="mt-3 type-body-lg text-on-surface-variant">
-          Available tools for processing your music streaming data.
-        </p>
-
-        <ToolsSection
-          tools={tools}
-          spotifyConnected={spotifyConnected}
-          loggedIn={loggedIn}
-        />
-
-      </main>
+      <ToolsShell
+        tools={tools}
+        spotifyConnected={spotifyConnected}
+        loggedIn={loggedIn}
+      >
+        <Welcome />
+      </ToolsShell>
     </div>
   );
 }
