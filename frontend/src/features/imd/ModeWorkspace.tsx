@@ -309,7 +309,7 @@ export default function ModeWorkspace({
         onDragLeave={onDragLeave}
         className={`rounded-lg border-2 border-dashed p-6 text-center transition-colors ${
           dragging
-            ? "border-primary bg-primary/5"
+            ? "border-success bg-success/5"
             : "border-outline bg-surface-container-low"
         }`}
       >

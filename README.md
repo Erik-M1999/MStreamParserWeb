@@ -27,6 +27,7 @@ Includes web based integration of ImmersiveMusicDisplay (https://github.com/Erik
 - [X] Revamp Interface design (Can be improved further)
 - [X] Set up API for external tool access. Test it with 3Ds Max. (Can be improved further)
 - [X] Add parser to convert playlists into plain .txt or .csv files. (can be improved further)
+- [ ] *Implement a welcome page
 - [ ] Trial a different API: last.fm.
 
 -> When repo has reached a working state with all mandatory function implemented, add other APIs.

@@ -1,6 +1,7 @@
 import { BACKEND_URL } from "@/shared/config";
 import AuthStatus from "@/features/auth/AuthStatus";
-import type { ApiConnection } from "@/shared/types";
+import ApiStatusButton from "@/features/dashboard/ApiStatusButton";
+import type { ApiConnection, SpotifyProfile } from "@/shared/types";
 
 // Maps an API id to the backend route that starts its OAuth login.
 // Only Spotify exists for now; add more entries as we support more APIs.
@@ -14,9 +15,12 @@ const LOGIN_URLS: Record<string, string> = {
 export default function Sidebar({
   connections,
   loggedIn,
+  profile,
 }: {
   connections: ApiConnection[];
   loggedIn: boolean;
+  /** Spotify account details, surfaced on hover over a connected API. */
+  profile?: SpotifyProfile | null;
 }) {
   return (
     <aside className="flex shrink-0 flex-col border-b border-outline-variant bg-surface-container-low md:h-screen md:w-72 md:border-b-0 md:border-r">
@@ -32,6 +36,8 @@ export default function Sidebar({
         <ul className="mt-4 flex flex-col gap-2">
           {connections.map((api) => {
             if (api.connected) {
+              // Not clickable — the green pip is the at-a-glance status and the
+              // "?" opens a status overview.
               return (
                 <li
                   key={api.id}
@@ -39,9 +45,7 @@ export default function Sidebar({
                 >
                   <span aria-hidden className="h-2 w-2 rounded-full bg-success" />
                   <span className="type-label-bold text-on-surface">{api.name}</span>
-                  <span className="ml-auto type-label-sm text-on-surface-variant">
-                    Connected
-                  </span>
+                  <ApiStatusButton name={api.name} profile={profile} />
                 </li>
               );
             }

@@ -43,7 +43,7 @@ export default function RegisterForm() {
   if (done) {
     return (
       <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6">
-        <h1 className="type-headline-lg text-primary">Account created</h1>
+        <h1 className="type-headline-lg text-success">Account created</h1>
         <p className="mt-2 type-body-lg text-on-surface-variant">
           You can now log in with your username and password.
         </p>

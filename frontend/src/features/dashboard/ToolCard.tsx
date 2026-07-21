@@ -13,15 +13,12 @@ export default function ToolCard({
     <>
       <div className="flex items-center justify-between gap-3">
         <h2 className="type-headline-md text-on-surface">{tool.name}</h2>
-        <span
-          className={`px-2 py-1 type-label-sm ${
-            isAvailable
-              ? "bg-primary text-on-primary"
-              : "bg-surface-container-high text-on-surface-variant"
-          }`}
-        >
-          {isAvailable ? "Available" : "Coming soon"}
-        </span>
+        {/* Available tools need no badge — only flag the ones that aren't yet. */}
+        {!isAvailable && (
+          <span className="bg-surface-container-high px-2 py-1 type-label-sm text-on-surface-variant">
+            Coming soon
+          </span>
+        )}
       </div>
       <p className="mt-3 type-body-lg text-on-surface-variant">{tool.description}</p>
     </>
