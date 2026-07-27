@@ -11,7 +11,8 @@
     "seed": "tsc && node --env-file-if-exists=.env dist/scripts/seed.js",
     "db:reset": "tsc && prisma migrate reset --force",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "prisma": {
     "seed": "node --env-file-if-exists=.env dist/scripts/seed.js"
@@ -36,8 +37,12 @@
     "@types/node": "24.13.2",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
+    "@vitest/coverage-v8": "4.1.9",
     "prisma": "6.19.3",
     "typescript": "6.0.3",
     "vitest": "4.1.9"
+  },
+  "overrides": {
+    "postcss": "8.5.23"
   }
 }

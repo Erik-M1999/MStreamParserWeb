@@ -1,1 +1,26 @@
-TEMP.md
+/TEMP.*
+
+node_modules/
+*.log
+
+# Secrets — NEVER commit. Only .env.example (placeholders) is tracked.
+.env
+.env.*
+!.env.example
+
+backend/dist/
+backend/log/
+
+backend/coverage/
+
+backend/prisma/*.db
+backend/prisma/*.db-journal
+
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/next-env.d.ts
+
+frontend/cypress/videos/
+frontend/cypress/screenshots/
+frontend/cypress/downloads/
