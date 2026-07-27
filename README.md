@@ -8,7 +8,6 @@ Includes web based integration of ImmersiveMusicDisplay (https://github.com/Erik
 **Improvements\*:**
 
 **Interface:**
-- Check for all inconsistent colour (Any success should be coloured green)
 - Library throws Error when User has no Folder or File saved yet
 
 **External API:**
@@ -24,11 +23,11 @@ Includes web based integration of ImmersiveMusicDisplay (https://github.com/Erik
 - [X] Integrate and expand ImmersiveMusicDisplay functionality.
 - [X] Set up optional login with databases.
 - [X] Testing
-- [X] Revamp Interface design (Can be improved further)
+- [X] Revamp Interface design
 - [X] Set up API for external tool access. Test it with 3Ds Max. (Can be improved further)
-- [X] Add parser to convert playlists into plain .txt or .csv files. (can be improved further)
-- [ ] *Implement a welcome page
-- [ ] Trial a different API: last.fm.
+- [X] Add parser to convert playlists into plain .txt or .csv files.
+- [X] Implement a welcome page (Potentially add gifs and pictures)
+- [X] Trial a different API: last.fm.
 
 -> When repo has reached a working state with all mandatory function implemented, add other APIs.
 
