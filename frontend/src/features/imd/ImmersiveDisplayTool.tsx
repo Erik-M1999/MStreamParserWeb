@@ -26,10 +26,12 @@ const parentPath = (p: string) => {
 };
 
 export default function ImmersiveDisplayTool({
-  connected,
+  spotifyConnected,
+  lastfmConnected,
   loggedIn,
 }: {
-  connected: boolean;
+  spotifyConnected: boolean;
+  lastfmConnected: boolean;
   loggedIn: boolean;
 }) {
   const [mode, setMode] = useState<Mode>("current-song");
@@ -293,21 +295,23 @@ export default function ImmersiveDisplayTool({
 
         <div className={mode === "current-song" ? "" : "hidden"}>
           <CurrentSongMode
-            connected={connected}
+            spotifyConnected={spotifyConnected}
+            lastfmConnected={lastfmConnected}
             loggedIn={loggedIn}
             pendingTemplate={pending}
           />
         </div>
+        {/* Playlist and Queue have no Last.fm equivalent -> Spotify only. */}
         <div className={mode === "playlist" ? "" : "hidden"}>
           <PlaylistMode
-            connected={connected}
+            connected={spotifyConnected}
             loggedIn={loggedIn}
             pendingTemplate={pending}
           />
         </div>
         <div className={mode === "queue" ? "" : "hidden"}>
           <QueueMode
-            connected={connected}
+            connected={spotifyConnected}
             loggedIn={loggedIn}
             pendingTemplate={pending}
           />

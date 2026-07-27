@@ -11,7 +11,7 @@ export default function ToolCard({
 
   const inner = (
     <>
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center justify-center gap-3">
         <h2 className="type-headline-md text-on-surface">{tool.name}</h2>
         {/* Available tools need no badge — only flag the ones that aren't yet. */}
         {!isAvailable && (
@@ -26,7 +26,7 @@ export default function ToolCard({
 
   // Flat, sharp-cornered white card with a 1px outline (no shadow — DESIGN.md).
   const baseClasses =
-    "block w-full border border-outline-variant bg-surface-container-lowest p-6 text-left";
+    "block w-full border border-outline-variant bg-surface-container-lowest p-8 text-center";
 
   // Functional tools open in a modal; others are static cards.
   if (onOpen) {

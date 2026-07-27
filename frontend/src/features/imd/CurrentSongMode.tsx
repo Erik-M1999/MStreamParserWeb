@@ -24,6 +24,8 @@ interface NowPlaying {
   supported?: boolean;
   /** "track" | "episode" | "ad" | "unknown" */
   type?: string;
+  /** true = playing right now; false = a most-recently-played fallback (Last.fm). */
+  live?: boolean;
   artist?: string;
   title?: string;
   album?: string;
@@ -81,12 +83,16 @@ function clampPct(value: string | number): number {
   return Math.min(500, Math.max(0.1, round1(n)));
 }
 
+type Provider = "spotify" | "lastfm";
+
 export default function CurrentSongMode({
-  connected,
+  spotifyConnected,
+  lastfmConnected,
   loggedIn,
   pendingTemplate,
 }: {
-  connected: boolean;
+  spotifyConnected: boolean;
+  lastfmConnected: boolean;
   loggedIn: boolean;
   pendingTemplate?: {
     token: number;
@@ -95,6 +101,11 @@ export default function CurrentSongMode({
     mode: string;
   } | null;
 }) {
+  // Current Song works with either provider; Spotify is the default. Queue and
+  // Playlist modes stay Spotify-only, so they don't get this toggle.
+  const [provider, setProvider] = useState<Provider>("spotify");
+  const connected = provider === "spotify" ? spotifyConnected : lastfmConnected;
+  const [refreshing, setRefreshing] = useState(false);
   const [templateSvg, setTemplateSvg] = useState<string | null>(null);
   const [templateName, setTemplateName] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -173,7 +184,7 @@ export default function CurrentSongMode({
 
   async function fetchNowPlaying(): Promise<NowPlaying | null> {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/spotify/now-playing`, {
+      const res = await fetch(`${BACKEND_URL}/api/${provider}/now-playing`, {
         credentials: "include",
       });
       if (res.ok) {
@@ -187,13 +198,27 @@ export default function CurrentSongMode({
     return null;
   }
 
+  // Manual re-check of the current/most-recent track. The live stream only polls
+  // every ~12s and Last.fm scrobbles lag, so this lets the user pull the latest
+  // before rendering (the render itself always re-fetches server-side).
+  async function refreshNowPlaying() {
+    setRefreshing(true);
+    try {
+      await fetchNowPlaying();
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   // Live "Now playing" via SSE: the backend pushes the track whenever it changes,
   // so the line follows playback without polling. EventSource auto-reconnects on
   // drop. The user still re-renders the image manually (see the songChanged hint).
   useEffect(() => {
+    // Switching provider clears the stale track until the new stream reports.
+    setNowPlaying(null);
     if (!connected) return;
     const es = new EventSource(
-      `${BACKEND_URL}/api/spotify/now-playing/stream`,
+      `${BACKEND_URL}/api/${provider}/now-playing/stream`,
       { withCredentials: true },
     );
     es.onmessage = (e) => {
@@ -205,7 +230,7 @@ export default function CurrentSongMode({
     };
     // EventSource reconnects on its own; no onerror handling needed.
     return () => es.close();
-  }, [connected]);
+  }, [connected, provider]);
 
   async function render(svg: string) {
     setLoading(true);
@@ -403,34 +428,76 @@ export default function CurrentSongMode({
     }
   }
 
+  // The source toggle (shown whether or not the chosen provider is connected, so
+  // the user can always switch). Spotify default; Last.fm is the alternative.
+  const providerSelector = (
+    <div className="flex items-center gap-2">
+      <span className="type-label-sm text-on-surface-variant">API</span>
+      <div className="flex border border-outline-variant">
+        {(["spotify", "lastfm"] as const).map((p) => {
+          const isSel = provider === p;
+          const isConn = p === "spotify" ? spotifyConnected : lastfmConnected;
+          return (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setProvider(p)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 type-label-bold uppercase transition-colors ${
+                isSel
+                  ? "bg-primary text-on-primary"
+                  : "text-on-surface-variant hover:text-on-surface"
+              }`}
+            >
+              {p === "spotify" ? "Spotify" : "Last.fm"}
+              <span
+                aria-hidden
+                title={isConn ? "Connected" : "Not connected"}
+                className={`h-1.5 w-1.5 rounded-full ${
+                  isConn ? "bg-success" : "bg-surface-dim"
+                }`}
+              />
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
   if (!connected) {
     return (
-      <div className="rounded-lg border border-outline-variant bg-surface-container-low p-6">
-        {loggedIn ? (
-          <>
+      <div className="space-y-4">
+        {providerSelector}
+        <div className="border border-outline-variant bg-surface-container-low p-6">
+          {!loggedIn ? (
+            <>
+              <p className="text-sm text-on-surface">
+                Log in to connect an API and use this tool.
+              </p>
+              <a
+                href="/login"
+                className="mt-4 inline-block bg-primary px-4 py-2 type-label-bold uppercase text-on-primary transition-colors hover:bg-primary-container"
+              >
+                Log in
+              </a>
+            </>
+          ) : provider === "spotify" ? (
+            <>
+              <p className="text-sm text-on-surface">
+                Connect your Spotify account to use this source.
+              </p>
+              <a
+                href={`${BACKEND_URL}/api/auth/spotify/login`}
+                className="mt-4 inline-block bg-primary px-4 py-2 type-label-bold uppercase text-on-primary transition-colors hover:bg-primary-container"
+              >
+                Connect Spotify
+              </a>
+            </>
+          ) : (
             <p className="text-sm text-on-surface">
-              Connect your Spotify account to use this tool.
+              Connect your Last.fm account from the left panel to use it here.
             </p>
-            <a
-              href={`${BACKEND_URL}/api/auth/spotify/login`}
-              className="mt-4 inline-block rounded-md bg-primary px-4 py-2 text-sm font-medium text-on-primary hover:bg-primary-container"
-            >
-              Connect Spotify
-            </a>
-          </>
-        ) : (
-          <>
-            <p className="text-sm text-on-surface">
-              Log in to connect Spotify and use this tool.
-            </p>
-            <a
-              href="/login"
-              className="mt-4 inline-block rounded-md bg-primary px-4 py-2 text-sm font-medium text-on-primary hover:bg-primary-container"
-            >
-              Log in
-            </a>
-          </>
-        )}
+          )}
+        </div>
       </div>
     );
   }
@@ -453,24 +520,57 @@ export default function CurrentSongMode({
   // collapse (and the box reads unchecked) when a re-render fits the boundary.
   const longTextActive = longText && (titleOverflow || artistOverflow);
 
+  const providerLabel = provider === "spotify" ? "Spotify" : "Last.fm";
+  const isLastfm = provider === "lastfm";
+  const emptyMsg = isLastfm
+    ? "No recent scrobbles on Last.fm yet."
+    : `Nothing is playing on ${providerLabel} right now.`;
+  // Label + status follow the payload's live flag (live track vs recent fallback).
+  const isLive = nowPlaying?.live !== false;
+  const nowLabel = isLive ? "Now playing:" : "Most recent:";
+
   return (
     <div className="space-y-6">
-      <div className="text-sm text-on-surface-variant">
-        {!nowPlaying?.playing ? (
-          "Nothing is playing on Spotify right now."
-        ) : nowPlaying.supported === false ? (
-          <span className="text-amber-600">
-            Spotify is playing {unsupportedLabel(nowPlaying.type)} — only songs
-            are supported.
-          </span>
-        ) : (
-          <>
-            Now playing:{" "}
-            <span className="text-on-surface">
-              {nowPlaying.artist} — {nowPlaying.title}
+      {providerSelector}
+
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2 text-sm text-on-surface-variant">
+          {!nowPlaying?.playing ? (
+            emptyMsg
+          ) : nowPlaying.supported === false ? (
+            <span className="text-amber-600">
+              {providerLabel} is playing {unsupportedLabel(nowPlaying.type)} —
+              only songs are supported.
             </span>
-          </>
-        )}
+          ) : (
+            <>
+              <span
+                className={`shrink-0 border px-1.5 py-0.5 type-label-sm ${
+                  isLive
+                    ? "border-success text-success"
+                    : "border-outline-variant text-on-surface-variant"
+                }`}
+              >
+                {isLive ? "Live" : "Recent"}
+              </span>
+              <span className="truncate">
+                {nowLabel}{" "}
+                <span className="text-on-surface">
+                  {nowPlaying.artist} — {nowPlaying.title}
+                </span>
+              </span>
+            </>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={refreshNowPlaying}
+          disabled={refreshing}
+          title="Re-check the current track"
+          className="shrink-0 border border-outline-variant px-3 py-1 type-label-sm text-on-surface-variant transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {refreshing ? "Checking…" : "Refresh"}
+        </button>
       </div>
 
       {/* Drag-and-drop zone (also click-to-browse). Once a file is loaded it
@@ -559,11 +659,15 @@ export default function CurrentSongMode({
             onClick={() => render(templateSvg)}
             className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-on-primary transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {loading ? "Rendering…" : "Re-render with current song"}
+            {loading
+              ? "Rendering…"
+              : isLive
+                ? "Re-render with current song"
+                : "Re-render with recent song"}
           </button>
           {songChanged && (
             <p className="text-xs text-amber-600">
-              The playing song changed — re-render to update the preview.
+              The song changed — re-render to update the preview.
             </p>
           )}
         </div>

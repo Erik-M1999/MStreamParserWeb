@@ -58,7 +58,9 @@ interface CurrentlyPlayingResponse {
 export type NowPlayingResult =
   | { state: "none" }
   | { state: "unsupported"; type: string }
-  | { state: "track"; track: CurrentTrack };
+  // `live` = a track playing right now (default) vs. a most-recently-played
+  // fallback (Last.fm, when nothing is scrobbling live).
+  | { state: "track"; track: CurrentTrack; live?: boolean };
 
 function getConnection(userId: number) {
   return prisma.connection.findUnique({
@@ -69,6 +71,11 @@ function getConnection(userId: number) {
 /** Whether the given user has a Spotify connection. */
 export async function isSpotifyConnected(userId: number): Promise<boolean> {
   return (await getConnection(userId)) !== null;
+}
+
+/** Removes the stored Spotify connection (the user re-authorizes to reconnect). */
+export async function disconnect(userId: number): Promise<void> {
+  await prisma.connection.deleteMany({ where: { userId, provider: PROVIDER } });
 }
 
 async function refreshAndStore(userId: number, refreshToken: string): Promise<string> {
@@ -114,25 +121,64 @@ export async function getValidAccessToken(userId: number): Promise<string> {
   return decryptSecret(conn.accessToken);
 }
 
+/** Most recently played track (fallback when nothing is playing live). Uses the
+ *  user-read-recently-played scope; returns null if unavailable (e.g. a pre-scope
+ *  connection 403s) so the caller degrades to "nothing playing". */
+async function getRecentlyPlayedTrack(token: string): Promise<CurrentTrack | null> {
+  const res = await fetch(
+    `${SPOTIFY_API_BASE}/me/player/recently-played?limit=1`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (!res.ok) {
+    if (res.status !== 403) console.error(`[spotify] recently-played ${res.status}`);
+    return null;
+  }
+  const data = (await res.json()) as {
+    items?: {
+      track?: {
+        name?: string;
+        artists?: { name: string }[];
+        album?: { name?: string; images?: { url: string }[] };
+      };
+    }[];
+  };
+  const t = data.items?.[0]?.track;
+  if (!t) return null;
+  return {
+    artist: t.artists?.[0]?.name ?? "Unknown artist",
+    title: t.name ?? "Unknown title",
+    album: t.album?.name ?? "",
+    coverUrl: t.album?.images?.[0]?.url ?? null,
+  };
+}
+
 export async function getNowPlaying(userId: number): Promise<NowPlayingResult> {
   const token = await getValidAccessToken(userId);
   const res = await fetch(`${SPOTIFY_API_BASE}/me/player/currently-playing`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (res.status === 204) return { state: "none" };
+
+  // Nothing playing live (204 / no item) -> fall back to the most recent track.
+  const recentFallback = async (): Promise<NowPlayingResult> => {
+    const track = await getRecentlyPlayedTrack(token);
+    return track ? { state: "track", track, live: false } : { state: "none" };
+  };
+
+  if (res.status === 204) return recentFallback();
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
     console.error(`[spotify] currently-playing ${res.status}:`, detail);
     throw new Error(`spotify_${res.status}`);
   }
   const data = (await res.json()) as CurrentlyPlayingResponse;
-  if (!data.item) return { state: "none" };
+  if (!data.item) return recentFallback();
   if (data.currently_playing_type && data.currently_playing_type !== "track") {
     return { state: "unsupported", type: data.currently_playing_type };
   }
   const item = data.item;
   return {
     state: "track",
+    live: true,
     track: {
       artist: item.artists?.[0]?.name ?? "Unknown artist",
       title: item.name ?? "Unknown title",
@@ -445,7 +491,8 @@ export async function getPlaylistExport(
 export function toNowPlayingPayload(np: NowPlayingResult) {
   if (np.state === "none") return { playing: false };
   if (np.state === "unsupported") return { playing: true, supported: false, type: np.type };
-  return { playing: true, supported: true, type: "track", ...np.track };
+  // Spotify reads are always live; Last.fm sets live explicitly (live vs recent).
+  return { playing: true, supported: true, type: "track", live: np.live ?? true, ...np.track };
 }
 
 // --- OAuth flow -----------------------------------------------------------
