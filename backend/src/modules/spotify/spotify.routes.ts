@@ -59,6 +59,15 @@ router.get("/auth/spotify/callback", authenticate, async (req: Request, res: Res
   }
 });
 
+router.post("/spotify/disconnect", authenticate, async (req: Request, res: Response) => {
+  try {
+    await spotify.disconnect(userIdOf(req));
+    res.sendStatus(204);
+  } catch (err) {
+    handleSpotifyError(err, res);
+  }
+});
+
 router.get("/spotify/me", authenticate, async (req: Request, res: Response) => {
   try {
     const { ok, status, data } = await spotify.getProfile(userIdOf(req));

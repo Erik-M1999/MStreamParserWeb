@@ -1,38 +1,30 @@
 "use client";
 
 import { useRef, useState } from "react";
-import type { SpotifyProfile } from "@/shared/types";
+
+export interface StatusRow {
+  label: string;
+  value: string;
+}
 
 // The "?" affordance inside a connected API row. The row itself isn't
-// clickable; hovering the "?" reveals a status overview.
+// clickable; hovering (or focusing) the "?" reveals a status overview.
 //
 // The panel is position:fixed and measured from the button, which escapes the
 // sidebar's overflow-y-auto clipping (a position:absolute panel got cut off).
 export default function ApiStatusButton({
   name,
-  profile,
+  rows,
 }: {
   name: string;
-  profile?: SpotifyProfile | null;
+  rows: StatusRow[];
 }) {
   const btnRef = useRef<HTMLButtonElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
 
-  const rows: [string, string][] = profile
-    ? [
-        ["Name", profile.display_name ?? "—"],
-        ["User ID", profile.id],
-        ...(profile.email ? ([["Email", profile.email]] as [string, string][]) : []),
-        ...(profile.product
-          ? ([["Plan", profile.product]] as [string, string][])
-          : []),
-      ]
-    : [];
-
   function show() {
     const r = btnRef.current?.getBoundingClientRect();
     if (!r) return;
-    // Clamp so the panel never runs off the bottom of the viewport.
     setPos({
       top: Math.max(8, Math.min(r.top, window.innerHeight - 200)),
       left: r.right + 8,
@@ -41,7 +33,7 @@ export default function ApiStatusButton({
 
   return (
     <span
-      className="ml-auto flex shrink-0"
+      className="flex shrink-0"
       onMouseEnter={show}
       onMouseLeave={() => setPos(null)}
     >
@@ -69,16 +61,10 @@ export default function ApiStatusButton({
 
           {rows.length > 0 ? (
             <dl className="mt-3 space-y-1.5 text-xs">
-              {rows.map(([label, value]) => (
-                <div key={label} className="flex justify-between gap-3">
-                  <dt className="shrink-0 text-on-surface-variant">{label}</dt>
-                  <dd
-                    className={`truncate text-on-surface ${
-                      label === "Plan" ? "capitalize" : ""
-                    }`}
-                  >
-                    {value}
-                  </dd>
+              {rows.map((row) => (
+                <div key={row.label} className="flex justify-between gap-3">
+                  <dt className="shrink-0 text-on-surface-variant">{row.label}</dt>
+                  <dd className="truncate text-on-surface">{row.value}</dd>
                 </div>
               ))}
             </dl>

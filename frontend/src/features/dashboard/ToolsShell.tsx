@@ -26,11 +26,13 @@ function byPriority(a: Tool, b: Tool): number {
 export default function ToolsShell({
   tools,
   spotifyConnected,
+  lastfmConnected,
   loggedIn,
   children,
 }: {
   tools: Tool[];
   spotifyConnected: boolean;
+  lastfmConnected: boolean;
   loggedIn: boolean;
   children: ReactNode;
 }) {
@@ -86,7 +88,11 @@ export default function ToolsShell({
         onClose={() => setOpenToolId(null)}
         title="SVG Texture Labs"
       >
-        <ImmersiveDisplayTool connected={spotifyConnected} loggedIn={loggedIn} />
+        <ImmersiveDisplayTool
+          spotifyConnected={spotifyConnected}
+          lastfmConnected={lastfmConnected}
+          loggedIn={loggedIn}
+        />
       </Modal>
 
       <Modal

@@ -12,8 +12,9 @@ export default function Modal({
   open: boolean;
   onClose: () => void;
   title?: string;
-  /** "wide" gives tools with side-by-side panes more room to work in. */
-  size?: "default" | "wide";
+  /** "wide" gives tools with side-by-side panes more room; "small" suits
+   *  compact dialogs like the Last.fm connect form. */
+  size?: "small" | "default" | "wide";
   children: ReactNode;
 }) {
   useEffect(() => {
@@ -50,7 +51,11 @@ export default function Modal({
       {/* Flat window: sharp corners, 1px outline, no shadow. */}
       <div
         className={`relative z-10 flex max-h-[93vh] w-full ${
-          size === "wide" ? "max-w-[104rem]" : "max-w-5xl"
+          size === "wide"
+            ? "max-w-[104rem]"
+            : size === "small"
+              ? "max-w-md"
+              : "max-w-5xl"
         } flex-col overflow-hidden border border-outline bg-surface-container-lowest`}
       >
         <div className="flex items-center justify-between border-b border-outline-variant px-6 py-4">

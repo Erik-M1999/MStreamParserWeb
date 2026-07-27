@@ -1,6 +1,8 @@
 import express, { type Request, type Response } from "express";
 import spotifyRouter from "./modules/spotify/spotify.routes.js";
 import { isSpotifyConnected } from "./modules/spotify/spotify.service.js";
+import lastfmRouter from "./modules/lastfm/lastfm.routes.js";
+import { isLastfmConnected } from "./modules/lastfm/lastfm.service.js";
 import immersiveRouter from "./modules/rendering/rendering.routes.js";
 import authRouter from "./modules/auth/auth.routes.js";
 import { optionalUser } from "./middleware/authenticate.js";
@@ -103,12 +105,23 @@ app.get("/api/tools", (_req: Request, res: Response) => {
 // The available APIs and whether they're connected — per logged-in user.
 app.get("/api/connections", async (req: Request, res: Response) => {
   const user = optionalUser(req);
-  const connected = user ? await isSpotifyConnected(user.userId) : false;
-  res.json([{ id: "spotify", name: "Spotify", connected }]);
+  const [spotify, lastfm] = user
+    ? await Promise.all([
+        isSpotifyConnected(user.userId),
+        isLastfmConnected(user.userId),
+      ])
+    : [false, false];
+  res.json([
+    { id: "spotify", name: "Spotify", connected: spotify },
+    { id: "lastfm", name: "Last.fm", connected: lastfm },
+  ]);
 });
 
 // Spotify OAuth + test-fetch routes (mounted under /api).
 app.use("/api", spotifyRouter);
+
+// Last.fm connect + now-playing routes (mounted under /api).
+app.use("/api", lastfmRouter);
 
 // ImmersiveMusicDisplay render route (mounted under /api).
 app.use("/api", immersiveRouter);

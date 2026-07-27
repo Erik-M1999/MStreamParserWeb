@@ -59,6 +59,9 @@ model Connection {
   refreshToken String
   expiresAt    DateTime
   scopes       String
+  // For token-less providers (e.g. Last.fm) this holds the account name/username;
+  // OAuth providers (Spotify) leave it null and use the token columns above.
+  accountName  String?
   createdAt    DateTime @default(now())
 
   @@unique([userId, provider])

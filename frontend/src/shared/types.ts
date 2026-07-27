@@ -25,3 +25,12 @@ export interface SpotifyProfile {
   product?: string;
   external_urls?: { spotify?: string };
 }
+
+// Last.fm user.getInfo subset (see backend lastfm.service getProfile).
+export interface LastfmProfile {
+  username: string;
+  realname: string | null;
+  playcount: number | null;
+  url: string | null;
+  imageUrl: string | null;
+}
