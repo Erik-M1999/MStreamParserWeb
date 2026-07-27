@@ -9,6 +9,12 @@ export default defineConfig({
     env: {
       JWT_SECRET: "integration-test-secret-key",
       TOKEN_ENC_KEY: "integration-test-token-enc-key",
+      // Real-DB tests (integration/library/apikeys) hit the local MariaDB from
+      // docker-compose. Uses an explicit DATABASE_URL if the shell provides one,
+      // else the local Docker default. (Prod/CI can point this elsewhere.)
+      DATABASE_URL:
+        process.env.DATABASE_URL ??
+        "mysql://msp:msp_local_dev@127.0.0.1:3306/MStreamParserWeb",
       // Spotify/Last.fm services read these at module load; set them so the
       // "configured" branches and OAuth-URL building are exercised in tests.
       SPOTIFY_CLIENT_ID: "test-client-id",

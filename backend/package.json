@@ -10,6 +10,7 @@
     "dev": "node --watch --env-file-if-exists=.env dist/server.js",
     "seed": "tsc && node --env-file-if-exists=.env dist/scripts/seed.js",
     "db:reset": "tsc && prisma migrate reset --force",
+    "build:web": "npm --prefix ../frontend run build && node -e \"const fs=require('fs');fs.rmSync('public',{recursive:true,force:true});fs.cpSync('../frontend/out','public',{recursive:true})\"",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"

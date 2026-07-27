@@ -1,15 +1,17 @@
-// Local dev uses a dedicated SQLite file, hardcoded so it ignores any
-// DATABASE_URL in .env (e.g. a not-yet-ready Hetzner MySQL URL).
-// At deploy (Session 10): switch provider to "mysql" and url to
-// env("DATABASE_URL"), then re-run migrations — the models below stay the same.
+// MySQL/MariaDB for both local dev (Docker, see docker-compose.yml) and prod
+// (Hetzner konsoleH). The connection string comes from DATABASE_URL:
+//   local: mysql://msp:msp_local_dev@127.0.0.1:3306/MStreamParserWeb
+//   prod:  set as a server env var in konsoleH (never committed)
+// Note the @db.Text fields below: MySQL's default String is VARCHAR(191), too
+// small for SVG bodies and encrypted tokens — so those are widened explicitly.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "mysql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -42,7 +44,7 @@ model Template {
   userId    Int
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   name      String
-  svg       String
+  svg       String   @db.MediumText // full SVG document — far exceeds VARCHAR(191)
   mode      String
   folderId  Int?
   folder    Folder?  @relation(fields: [folderId], references: [id], onDelete: Cascade)
@@ -55,10 +57,10 @@ model Connection {
   userId       Int
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   provider     String
-  accessToken  String
-  refreshToken String
+  accessToken  String   @db.Text // AES-encrypted token — longer than VARCHAR(191)
+  refreshToken String   @db.Text // AES-encrypted token — longer than VARCHAR(191)
   expiresAt    DateTime
-  scopes       String
+  scopes       String   @db.Text // space-separated scope list — headroom to grow
   // For token-less providers (e.g. Last.fm) this holds the account name/username;
   // OAuth providers (Spotify) leave it null and use the token columns above.
   accountName  String?

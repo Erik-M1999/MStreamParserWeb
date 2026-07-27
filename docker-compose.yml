@@ -1,0 +1,37 @@
+# Local development database ONLY (not the app).
+#
+# Hetzner Webhosting runs MariaDB, so we develop against the same engine for
+# parity. Bring it up once — it then stays running in the background:
+#
+#   docker compose up -d
+#
+# Then point backend/.env at it (these are LOCAL dev credentials, not prod):
+#   DATABASE_URL="mysql://msp:msp_local_dev@127.0.0.1:3306/MStreamParserWeb"
+#
+# Production uses the konsoleH MySQL/MariaDB with its own DATABASE_URL, set as a
+# server env var (never committed).
+
+services:
+  db:
+    image: mariadb:11.4
+    container_name: msp-mariadb
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: MStreamParserWeb
+      MARIADB_USER: msp
+      MARIADB_PASSWORD: msp_local_dev
+      MARIADB_ROOT_PASSWORD: root_local_dev
+    ports:
+      - "3306:3306"
+    volumes:
+      - msp_db_data:/var/lib/mysql
+      # Grants the dev user shadow-DB privileges on first init (for migrate dev).
+      - ./docker/mariadb-init.sql:/docker-entrypoint-initdb.d/01-grant.sql:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  msp_db_data:

@@ -1,8 +1,10 @@
-import { cookies } from "next/headers";
+"use client";
+
+import { useEffect, useState } from "react";
 import Sidebar from "@/features/dashboard/Sidebar";
 import ToolsShell from "@/features/dashboard/ToolsShell";
 import Welcome from "@/features/welcome/Welcome";
-import { BACKEND_URL } from "@/shared/config";
+import { authFetch } from "@/shared/lib/authFetch";
 import type {
   ApiConnection,
   SpotifyProfile,
@@ -10,49 +12,64 @@ import type {
   Tool,
 } from "@/shared/types";
 
-// Server-side fetch that forwards the caller's auth cookie to the backend.
-function backendGet(path: string, cookie: string): Promise<Response> {
-  return fetch(`${BACKEND_URL}${path}`, {
-    cache: "no-store",
-    headers: cookie ? { cookie } : undefined,
-  });
-}
+// The home page is a CLIENT Component: the static export (Path A) has no server
+// at request time, so per-user data (login state, connected APIs, profiles) is
+// fetched in the browser against /api after mount. The auth cookie rides along
+// automatically (authFetch sends credentials). The landing content (<Welcome/>)
+// renders immediately; the sidebar/tools fill in once the fetches resolve.
+export default function HomePage() {
+  const [tools, setTools] = useState<Tool[]>([]);
+  const [connections, setConnections] = useState<ApiConnection[]>([]);
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [spotifyProfile, setSpotifyProfile] = useState<SpotifyProfile | null>(null);
+  const [lastfmProfile, setLastfmProfile] = useState<LastfmProfile | null>(null);
 
-// This is a Server Component (the default in the App Router). The `await`s below
-// run on the SERVER at request time — the HTML arrives already filled in.
-export default async function HomePage() {
-  const cookie = (await cookies()).toString();
+  useEffect(() => {
+    let cancelled = false;
 
-  const [toolsRes, connectionsRes, meRes] = await Promise.all([
-    backendGet("/api/tools", cookie),
-    backendGet("/api/connections", cookie),
-    backendGet("/api/auth/me", cookie),
-  ]);
+    async function getJson<T>(path: string): Promise<T | null> {
+      try {
+        const res = await authFetch(path);
+        return res.ok ? ((await res.json()) as T) : null;
+      } catch {
+        return null;
+      }
+    }
 
-  const tools: Tool[] = toolsRes.ok ? await toolsRes.json() : [];
-  const connections: ApiConnection[] = connectionsRes.ok
-    ? await connectionsRes.json()
-    : [];
-  const loggedIn = meRes.ok;
-  const spotifyConnected = connections.some(
-    (c) => c.id === "spotify" && c.connected,
-  );
-  const lastfmConnected = connections.some(
-    (c) => c.id === "lastfm" && c.connected,
-  );
+    (async () => {
+      const [toolsData, connData, meOk] = await Promise.all([
+        getJson<Tool[]>("/api/tools"),
+        getJson<ApiConnection[]>("/api/connections"),
+        authFetch("/api/auth/me")
+          .then((r) => r.ok)
+          .catch(() => false),
+      ]);
+      if (cancelled) return;
 
-  const [spotifyProfileRes, lastfmProfileRes] = await Promise.all([
-    spotifyConnected ? backendGet("/api/spotify/me", cookie) : null,
-    lastfmConnected ? backendGet("/api/lastfm/me", cookie) : null,
-  ]);
-  const spotifyProfile: SpotifyProfile | null =
-    spotifyProfileRes && spotifyProfileRes.ok
-      ? await spotifyProfileRes.json()
-      : null;
-  const lastfmProfile: LastfmProfile | null =
-    lastfmProfileRes && lastfmProfileRes.ok
-      ? await lastfmProfileRes.json()
-      : null;
+      const conns = connData ?? [];
+      setTools(toolsData ?? []);
+      setConnections(conns);
+      setLoggedIn(meOk);
+
+      const spotifyConnected = conns.some((c) => c.id === "spotify" && c.connected);
+      const lastfmConnected = conns.some((c) => c.id === "lastfm" && c.connected);
+
+      const [spotify, lastfm] = await Promise.all([
+        spotifyConnected ? getJson<SpotifyProfile>("/api/spotify/me") : Promise.resolve(null),
+        lastfmConnected ? getJson<LastfmProfile>("/api/lastfm/me") : Promise.resolve(null),
+      ]);
+      if (cancelled) return;
+      setSpotifyProfile(spotify);
+      setLastfmProfile(lastfm);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const spotifyConnected = connections.some((c) => c.id === "spotify" && c.connected);
+  const lastfmConnected = connections.some((c) => c.id === "lastfm" && c.connected);
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">

@@ -1,4 +1,6 @@
 import express, { type Request, type Response } from "express";
+import fs from "node:fs";
+import path from "node:path";
 import spotifyRouter from "./modules/spotify/spotify.routes.js";
 import { isSpotifyConnected } from "./modules/spotify/spotify.service.js";
 import lastfmRouter from "./modules/lastfm/lastfm.routes.js";
@@ -19,7 +21,14 @@ import externalRouter from "./modules/external/external.routes.js";
 // ---------------------------------------------------------------------------
 
 const app = express();
-const PORT = 3000;
+
+// In production the app runs behind Hetzner's Apache reverse proxy, which
+// terminates HTTPS. `trust proxy` lets Express see the real protocol/client IP
+// (so secure cookies and req.ip work correctly).
+app.set("trust proxy", 1);
+
+// The hosting platform assigns the port via PORT; fall back to 3000 locally.
+const PORT = Number(process.env.PORT) || 3000;
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN ?? "http://127.0.0.1:5173";
 
 // Allow our frontend's browser-side calls (e.g. the SVG Texture Labs tool).
@@ -135,6 +144,53 @@ app.use("/api", libraryRouter);
 // API keys management (cookie auth) + the external API for tools (/api/v1, key auth).
 app.use("/api", apiKeysRouter);
 app.use("/api", externalRouter);
+
+// Unknown /api/* paths get a clean JSON 404 — so they never fall through to the
+// SPA fallback below and get answered with index.html (HTML for an API call).
+app.use("/api", (_req: Request, res: Response) => {
+  res.status(404).json({ error: "Not found" });
+});
+
+// --- Static frontend + SPA fallback (production single-app deploy) ----------
+// In the deployed build the Next.js static export is copied into backend/public
+// and Express serves it on the same origin as the API. Locally this folder does
+// not exist (Next runs its own dev server on :5173), so we mount it only when
+// present — keeping dev untouched.
+const PUBLIC_DIR = path.join(__dirname, "..", "public");
+if (fs.existsSync(path.join(PUBLIC_DIR, "index.html"))) {
+  // 1) Real files only: hashed _next assets, RSC .txt payloads, images, etc.
+  //    index:false + redirect:false so route directories (e.g. login/, which
+  //    holds Next's client-nav payloads) don't shadow the <route>.html files.
+  app.use(
+    express.static(PUBLIC_DIR, {
+      index: false,
+      redirect: false,
+      setHeaders: (res, filePath) => {
+        if (filePath.includes(`${path.sep}_next${path.sep}`)) {
+          // Content-hashed assets never change -> cache hard.
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        } else {
+          res.setHeader("Cache-Control", "no-cache");
+        }
+      },
+    }),
+  );
+
+  // 2) Page routes: the export writes one prerendered file per page, so map the
+  //    clean URL to it (/login -> login.html, / -> index.html). Unknown paths
+  //    get Next's 404 page. index.html/*.html are always sent no-cache.
+  app.use((req: Request, res: Response) => {
+    const rel = req.path === "/" ? "index" : req.path.replace(/^\/+/, "");
+    const htmlFile = path.join(PUBLIC_DIR, `${rel}.html`);
+    res.setHeader("Cache-Control", "no-cache");
+    // Containment guard against path traversal (never serve outside PUBLIC_DIR).
+    if (htmlFile.startsWith(PUBLIC_DIR + path.sep) && fs.existsSync(htmlFile)) {
+      res.sendFile(htmlFile);
+    } else {
+      res.status(404).sendFile(path.join(PUBLIC_DIR, "404.html"));
+    }
+  });
+}
 
 app.listen(PORT, () => {
   console.log(`[backend] listening on http://127.0.0.1:${PORT}`);

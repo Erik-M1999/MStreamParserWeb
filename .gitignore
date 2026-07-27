@@ -11,6 +11,9 @@ node_modules/
 backend/dist/
 backend/log/
 
+# Staged frontend build (produced by `npm run build:web`); shipped separately.
+backend/public/
+
 backend/coverage/
 
 backend/prisma/*.db
