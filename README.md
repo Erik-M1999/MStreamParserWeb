@@ -228,7 +228,14 @@ rendering.service.ts
 Das `Rendering`, da es komplett "stateless" ist. Es hat keinen Zugriff auf die Datenbank oder andere Services. Es empfängt nur Daten von Externe APIs (Spotify) und `fillTemplate()` und verarbeitet diese.
 
 ### 10)
-
+Ersetzt durch Session 11
 ### 11)
+**Überblick**
+
+| Bestandteil | Läuft als | Hostname / Pfad | Wird ausgeliefert von |
+|---|---|---|---|
+| Frontend (Next.js) | statisches Build | m1999-tools.de | Express (express.static) |
+| Backend (Express) | Node.js-App | m1999-tools.de/api | konsoleH Node.js |
+| Datenbank (SQL) | MySQL | localhost:3306 | konsoleH DB-Verwaltung |
 
 ### 12)
