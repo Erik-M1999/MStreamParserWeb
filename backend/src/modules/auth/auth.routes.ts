@@ -1,10 +1,6 @@
-import {
-  Router,
-  type Request,
-  type Response,
-  type NextFunction,
-} from "express";
+import { Router, type Request, type Response } from "express";
 import { COOKIE_NAME, optionalUser } from "../../middleware/authenticate.js";
+import { rateLimit } from "../../shared/rateLimit.js";
 import { route } from "../../shared/route.js";
 import { register, login, TOKEN_TTL_SECONDS } from "./auth.service.js";
 
@@ -32,35 +28,12 @@ function clearAuthCookie(res: Response) {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Tiny in-memory rate limiter (no extra deps). Keyed by client IP per route;
-// blocks brute-force on login/register. Fine for a single-process dev/uni
-// deployment — swap for a shared store (Redis) if we ever scale horizontally.
-// ---------------------------------------------------------------------------
-function rateLimit(opts: { windowMs: number; max: number }) {
-  const hits = new Map<string, { count: number; resetAt: number }>();
-  return (req: Request, res: Response, next: NextFunction) => {
-    const key = req.ip ?? "unknown";
-    const now = Date.now();
-    const entry = hits.get(key);
-    if (!entry || now >= entry.resetAt) {
-      hits.set(key, { count: 1, resetAt: now + opts.windowMs });
-      next();
-      return;
-    }
-    entry.count += 1;
-    if (entry.count > opts.max) {
-      const retryAfter = Math.ceil((entry.resetAt - now) / 1000);
-      res.setHeader("Retry-After", String(retryAfter));
-      res.status(429).json({ error: "Too many attempts. Please try again later." });
-      return;
-    }
-    next();
-  };
-}
-
-// 10 attempts per 15 minutes per IP on the auth entry points.
-const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10 });
+// 10 attempts per 15 minutes per IP on the auth entry points (brute-force brake).
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: "Too many attempts. Please try again later.",
+});
 
 router.post(
   "/auth/register",

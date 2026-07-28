@@ -112,6 +112,11 @@ describe("external API + apiKeyAuth", () => {
     const res = await fetch(`${app.base}/api/v1/templates/7`, { headers: KEY_HEADER });
     expect(res.headers.get("content-type")).toContain("image/svg+xml");
     expect(await res.text()).toBe("<svg/>");
+    // SVG is an active document — served user content must carry the lockdown CSP.
+    expect(res.headers.get("content-security-policy")).toBe(
+      "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:",
+    );
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
   });
 
   it("renders SVG by default and PNG on ?format=png", async () => {
@@ -121,6 +126,7 @@ describe("external API + apiKeyAuth", () => {
 
     const svg = await fetch(`${app.base}/api/v1/render/7`, { headers: KEY_HEADER });
     expect(await svg.text()).toBe("<svg>filled</svg>");
+    expect(svg.headers.get("content-security-policy")).toContain("default-src 'none'");
 
     const png = await fetch(`${app.base}/api/v1/render/7?format=png&size=1024`, { headers: KEY_HEADER });
     expect(png.headers.get("content-type")).toContain("image/png");
@@ -171,6 +177,7 @@ describe("immersive render route", () => {
       body: "<svg/>",
     });
     expect(await res.text()).toBe("<svg>ok</svg>");
+    expect(res.headers.get("content-security-policy")).toContain("default-src 'none'");
     expect(rd.render).toHaveBeenCalledWith(1, "<svg/>", "queue");
   });
 });

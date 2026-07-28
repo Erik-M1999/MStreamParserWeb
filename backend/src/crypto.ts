@@ -15,6 +15,7 @@ import crypto from "node:crypto";
 const PREFIX = "v1";
 const ALGO = "aes-256-gcm";
 const IV_BYTES = 12; // standard nonce size for GCM
+const TAG_BYTES = 16; // full-length GCM auth tag — short tags weaken forgery resistance
 
 function key(): Buffer {
   const secret = process.env.TOKEN_ENC_KEY ?? "";
@@ -47,7 +48,15 @@ export function decryptSecret(stored: string): string {
   const iv = Buffer.from(ivB64, "base64");
   const tag = Buffer.from(tagB64, "base64");
   const ct = Buffer.from(ctB64, "base64");
-  const decipher = crypto.createDecipheriv(ALGO, key(), iv);
+  // Reject anything but a full 16-byte tag. Node would otherwise accept a
+  // truncated tag, which makes forgery dramatically cheaper; authTagLength on
+  // the decipher enforces the same bound a second time.
+  if (tag.length !== TAG_BYTES) {
+    throw new Error("Malformed encrypted value: bad authentication tag length.");
+  }
+  const decipher = crypto.createDecipheriv(ALGO, key(), iv, {
+    authTagLength: TAG_BYTES,
+  });
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(ct), decipher.final()]).toString("utf8");
 }

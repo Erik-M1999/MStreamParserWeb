@@ -1,6 +1,8 @@
 import { Router, type Request, type Response } from "express";
 import { type AuthedRequest } from "../../middleware/authenticate.js";
+import { rateLimit } from "../../shared/rateLimit.js";
 import { route } from "../../shared/route.js";
+import { sendSvg } from "../../shared/svgResponse.js";
 import { apiKeyAuth } from "../apikeys/apiKeyAuth.js";
 import * as library from "../library/library.service.js";
 import { render, svgToPng } from "../rendering/rendering.service.js";
@@ -51,7 +53,7 @@ router.get(
   apiKeyAuth,
   route(async (req, res) => {
     const t = await library.getTemplate(userIdOf(req), idParam(req));
-    res.type("image/svg+xml").send(t.svg);
+    sendSvg(res, t.svg);
   }),
 );
 
@@ -59,8 +61,17 @@ router.get(
 // `mode` defaults to the template's own saved mode (override with ?mode=).
 // `?format=png` rasterizes server-side; `?size=` sets the LONGEST side in px
 // (capped at the template's natural size — never upscales). Default is SVG.
+// Same budget as /immersive/render, and ?format=png adds a resvg raster on top.
+// A 3Ds Max viewport polling once a second still fits inside this.
+const renderLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  message: "Too many render requests. Please slow down.",
+});
+
 router.get(
   "/v1/render/:id",
+  renderLimiter,
   apiKeyAuth,
   route(async (req, res) => {
     const userId = userIdOf(req);
@@ -72,7 +83,7 @@ router.get(
       const size = typeof req.query.size === "string" ? Number(req.query.size) : undefined;
       res.type("image/png").send(svgToPng(svg, size));
     } else {
-      res.type("image/svg+xml").send(svg);
+      sendSvg(res, svg);
     }
   }),
 );

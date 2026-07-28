@@ -239,3 +239,18 @@ Ersetzt durch Session 11
 | Datenbank (SQL) | MySQL | localhost:3306 | konsoleH DB-Verwaltung |
 
 ### 12)
+**Security-Scan (CodeSniper)**
+
+Ergebnis: 
+- keine kritischen Befunde
+- 25 Meldungen, davon der Großteil High/Medium im Code
+
+**Die wichtigsten Befunde (behoben):**
+
+| # | Befund | Risiko | Fix |
+|---|---|---|---|
+| 1 | `decryptSecret()` erzwang die GCM-Tag-Länge nicht | Node akzeptiert auch gekürzte Auth-Tags -> Fälschen eines gültig wirkenden Werts wird dadurch möglich | `tag.length !== 16` wirft jetzt, zusätzlich `{ authTagLength: 16 }` an `createDecipheriv` |
+| 2 | Gespeicherte SVGs wurden ohne CSP ausgeliefert | SVG ist ein aktives Dokument: direkt im Browser geöffnet führt es `<script>` und `on*`-Handler auf unserer Origin aus | Neuer Helper `shared/svgResponse.ts` setzt auf **jeder** SVG-Antwort `default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:` + `nosniff`. Zusätzlich strippt `svgTemplate.ts` beim Rendern `<script>`, `on*`-Attribute und `javascript:`-URLs (mit dem vorhandenen `@xmldom/xmldom`, ohne neue Dependency) |
+| 3 | Render-Endpunkte ohne Rate-Limit | `/immersive/render` und `/v1/render/:id` parsen SVG, rastern via resvg und rufen Spotify/CDNs auf -> teuerste Requests der App, ungebremst | `rateLimit` aus `auth.routes.ts` nach `shared/rateLimit.ts` extrahiert und auf beide Render-Routen angewendet (60/min pro IP) |
+
+**Bewusst nicht bearbeitet:** Packages, die auf eine Version jünger als / Tage geupdated werden sollen, wurden ignoriert.

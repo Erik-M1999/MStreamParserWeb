@@ -118,4 +118,53 @@ describe("fillTemplate", () => {
     expect(out).toContain("&lt;script&gt;");
     expect(out).not.toContain("<script>");
   });
+
+  // Defense-in-depth: an uploaded template carrying active content is stripped
+  // on render (the CSP in shared/svgResponse.ts is the second layer).
+  describe("active-content stripping", () => {
+    it("removes <script> elements, including nested ones", () => {
+      const hostile = `<svg xmlns="http://www.w3.org/2000/svg">
+        <script>alert(1)</script>
+        <g><foreignObject><script>alert(2)</script></foreignObject></g>
+        <text template-id="title">OLD</text>
+      </svg>`;
+      const out = fillTemplate(hostile, { text: { title: "safe" }, images: noImages });
+      expect(out).not.toContain("<script");
+      expect(out).not.toContain("alert(");
+      expect(out).toContain("safe"); // the legitimate fill still happened
+    });
+
+    it("removes on* event-handler attributes", () => {
+      const hostile = `<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)">
+        <text template-id="title" onclick="steal()" ONMOUSEOVER="x()">OLD</text>
+      </svg>`;
+      const out = fillTemplate(hostile, { text: { title: "safe" }, images: noImages });
+      expect(out).not.toMatch(/onload|onclick/i);
+      expect(out).not.toMatch(/ONMOUSEOVER/i);
+    });
+
+    it("removes javascript: URLs but keeps ordinary hrefs", () => {
+      const hostile = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+        <a href="javascript:alert(1)"><text template-id="title">OLD</text></a>
+        <a xlink:href="JavaScript:alert(2)"><text template-id="artist">OLD</text></a>
+        <a href="https://example.com/ok"><text template-id="cover">keep</text></a>
+      </svg>`;
+      const out = fillTemplate(hostile, {
+        text: { title: "safe", artist: "safe" },
+        images: noImages,
+      });
+      expect(out).not.toMatch(/javascript:/i);
+      expect(out).toContain("https://example.com/ok");
+    });
+
+    it("leaves a clean template untouched", () => {
+      const out = fillTemplate(CLASSIC, {
+        text: { title: "T", artist: "A" },
+        images: noImages,
+      });
+      expect(out).toContain("T");
+      expect(out).toContain("A");
+      expect(out).toContain('template-id="cover"');
+    });
+  });
 });

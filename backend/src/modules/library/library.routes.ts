@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { authenticate, type AuthedRequest } from "../../middleware/authenticate.js";
 import { route } from "../../shared/route.js";
+import { sendSvg } from "../../shared/svgResponse.js";
 import * as library from "./library.service.js";
 
 // ---------------------------------------------------------------------------
@@ -65,7 +66,7 @@ router.get("/sample-templates/:id", (req: Request, res: Response) => {
     res.status(404).json({ error: "Template not found." });
     return;
   }
-  res.type("image/svg+xml").send(fs.readFileSync(path.join(TEMPLATES_DIR, id), "utf8"));
+  sendSvg(res, fs.readFileSync(path.join(TEMPLATES_DIR, id), "utf8"));
 });
 
 // --- Per-user templates (authenticated) ------------------------------------

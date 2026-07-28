@@ -57,6 +57,41 @@ function findSlot(doc: AnyNode, name: string): AnyNode | null {
   );
 }
 
+/**
+ * Removes active content from a parsed SVG: <script> elements anywhere in the
+ * tree (including inside <foreignObject>), on* event-handler attributes, and
+ * javascript: URLs. Purely subtractive — layout, styling and slot markers are
+ * untouched. This is belt-and-braces next to the CSP in shared/svgResponse.ts;
+ * neither alone is trusted.
+ */
+function stripActiveAttributes(el: AnyNode): void {
+  const attrs = el.attributes;
+  // Walk backwards: removing an attribute shifts the ones after it.
+  for (let a = attrs ? attrs.length - 1 : -1; a >= 0; a--) {
+    const attr = attrs[a];
+    const attrName: string = attr.name ?? "";
+    const isHandler = attrName.toLowerCase().startsWith("on");
+    const isJsUrl =
+      /(^|:)href$/i.test(attrName) && /^\s*javascript:/i.test(attr.value ?? "");
+    if (isHandler || isJsUrl) el.removeAttribute(attrName);
+  }
+}
+
+function stripActiveContent(el: AnyNode): void {
+  stripActiveAttributes(el); // the element itself, not just its descendants
+  const children = el.childNodes;
+  if (!children) return;
+  for (let i = children.length - 1; i >= 0; i--) {
+    const child = children[i];
+    if (child.nodeType !== 1) continue; // element nodes only
+    if (tagOf(child) === "script") {
+      el.removeChild(child);
+      continue;
+    }
+    stripActiveContent(child);
+  }
+}
+
 function fillText(doc: AnyNode, name: string, value: string): boolean {
   const slot = findSlot(doc, name);
   if (!slot) return false;
@@ -111,6 +146,8 @@ export function fillTemplate(svg: string, fill: TemplateFill): string {
         (problems.length ? ` (${problems[0]})` : ""),
     );
   }
+
+  stripActiveContent(root);
 
   let filled = 0;
   for (const [slot, value] of Object.entries(fill.text)) {

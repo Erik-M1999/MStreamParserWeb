@@ -41,6 +41,26 @@ describe("encryptSecret / decryptSecret", () => {
     expect(() => decryptSecret(tampered)).toThrow();
   });
 
+  // Error case: a truncated or oversized GCM auth tag is rejected outright.
+  // Node would happily accept a short tag, which makes forging a valid-looking
+  // value far cheaper, so decryptSecret enforces the full 16 bytes itself.
+  it("throws when the auth tag is not exactly 16 bytes", () => {
+    const [prefix, ivB64, tagB64, ctB64] = encryptSecret("sensitive").split(":");
+    const tag = Buffer.from(tagB64, "base64");
+    expect(tag.length).toBe(16); // sanity: encryptSecret emits a full tag
+
+    const truncated = [prefix, ivB64, tag.subarray(0, 8).toString("base64"), ctB64].join(":");
+    expect(() => decryptSecret(truncated)).toThrow(/authentication tag length/);
+
+    const oversized = [
+      prefix,
+      ivB64,
+      Buffer.concat([tag, Buffer.alloc(4)]).toString("base64"),
+      ctB64,
+    ].join(":");
+    expect(() => decryptSecret(oversized)).toThrow(/authentication tag length/);
+  });
+
   // Error case: refuses to encrypt without a key
   it("throws when TOKEN_ENC_KEY is missing", () => {
     const saved = process.env.TOKEN_ENC_KEY;
