@@ -127,6 +127,62 @@ describe("library: templates", () => {
     await library.deleteFolder(userId, a.id);
   });
 
+  // Moving a folder into its own subtree would make the parent chain circular,
+  // and listTemplatesWithPath walks that chain — one bad move could otherwise
+  // break the whole library listing (and /v1/templates) for good.
+  it("refuses to move a folder into itself or one of its descendants", async () => {
+    const a = await library.createFolder(userId, { name: "A" });
+    const b = await library.createFolder(userId, { name: "B", parentId: a.id });
+    const c = await library.createFolder(userId, { name: "C", parentId: b.id });
+
+    // Direct self-parent.
+    await expect(
+      library.updateFolder(userId, a.id, { name: "A", parentId: a.id }),
+    ).rejects.toMatchObject({ status: 400 });
+
+    // One level down (A under its child B).
+    await expect(
+      library.updateFolder(userId, a.id, { name: "A", parentId: b.id }),
+    ).rejects.toMatchObject({ status: 400 });
+
+    // Several levels down (A under its grandchild C) — the case the old
+    // `parentId === id` check missed entirely.
+    await expect(
+      library.updateFolder(userId, a.id, { name: "A", parentId: c.id }),
+    ).rejects.toMatchObject({ status: 400 });
+
+    // A legitimate move still works: C up to the root, then under A.
+    const detached = await library.updateFolder(userId, c.id, { name: "C", parentId: null });
+    expect(detached.parentId).toBeNull();
+    const remounted = await library.updateFolder(userId, c.id, { name: "C", parentId: a.id });
+    expect(remounted.parentId).toBe(a.id);
+
+    // The hierarchy is still walkable after all that.
+    const t = await library.createTemplate(userId, { name: "T", svg: SVG, folderId: c.id });
+    const list = await library.listTemplatesWithPath(userId);
+    expect(list.find((x) => x.id === t.id)!.path).toBe("A/C");
+
+    await library.deleteFolder(userId, a.id);
+  });
+
+  // Defense in depth: if a cycle somehow already exists (written before the
+  // guard above), listing must degrade, not blow the stack.
+  it("survives a cycle that is already in the database", async () => {
+    const a = await library.createFolder(userId, { name: "CycA" });
+    const b = await library.createFolder(userId, { name: "CycB", parentId: a.id });
+    const t = await library.createTemplate(userId, { name: "Cyc", svg: SVG, folderId: b.id });
+
+    // Bypass the service guard to forge the cycle the guard would now reject.
+    await prisma.folder.update({ where: { id: a.id }, data: { parentId: b.id } });
+
+    const list = await library.listTemplatesWithPath(userId);
+    expect(list.find((x) => x.id === t.id)).toBeDefined(); // no RangeError
+
+    // Break the cycle so the cascade delete can clean up.
+    await prisma.folder.update({ where: { id: a.id }, data: { parentId: null } });
+    await library.deleteFolder(userId, a.id);
+  });
+
   it("rejects a template with missing name/svg (400)", async () => {
     await expect(library.createTemplate(userId, { name: "", svg: SVG })).rejects.toMatchObject({ status: 400 });
     await expect(library.createTemplate(userId, { name: "x", svg: "" })).rejects.toMatchObject({ status: 400 });

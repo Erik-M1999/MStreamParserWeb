@@ -9,6 +9,23 @@ beforeAll(() => {
   process.env.TOKEN_ENC_KEY = "test-key-for-unit-tests";
 });
 
+/** Builds a value in the retired v1 format (SHA-256 key, no HKDF). */
+function makeV1(plain: string): string {
+  const legacyKey = crypto
+    .createHash("sha256")
+    .update(process.env.TOKEN_ENC_KEY!)
+    .digest();
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", legacyKey, iv);
+  const ct = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
+  return [
+    "v1",
+    iv.toString("base64"),
+    cipher.getAuthTag().toString("base64"),
+    ct.toString("base64"),
+  ].join(":");
+}
+
 describe("encryptSecret / decryptSecret", () => {
   // Normal case
   it("round-trips a value back to the original plaintext", () => {
@@ -61,27 +78,12 @@ describe("encryptSecret / decryptSecret", () => {
     ).toThrow();
   });
 
-  // v1 rows (written before the KDF change) must keep working until they are
-  // rewritten — Spotify tokens are re-encrypted on every refresh.
-  it("still decrypts a legacy v1 value", () => {
-    const plain = "legacy-spotify-token";
-    const legacyKey = crypto
-      .createHash("sha256")
-      .update(process.env.TOKEN_ENC_KEY!)
-      .digest();
-    const iv = crypto.randomBytes(12);
-    const cipher = crypto.createCipheriv("aes-256-gcm", legacyKey, iv);
-    const ct = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
-    const v1 = [
-      "v1",
-      iv.toString("base64"),
-      cipher.getAuthTag().toString("base64"),
-      ct.toString("base64"),
-    ].join(":");
-
-    expect(decryptSecret(v1)).toBe(plain);
-    // …and re-encrypting it upgrades the row to v2.
-    expect(encryptSecret(decryptSecret(v1)).startsWith("v2:")).toBe(true);
+  // The weak v1 derivation is no longer reachable from the running app — rows
+  // are converted up-front by scripts/migrate-token-encryption.ts.
+  it("refuses a legacy v1 value and points at the migration", () => {
+    expect(() => decryptSecret(makeV1("legacy-spotify-token"))).toThrow(
+      /migrate:tokens/,
+    );
   });
 
   // Error case: tampered ciphertext fails the GCM auth check

@@ -102,13 +102,25 @@ export async function listTemplatesWithPath(userId: number) {
 
   const byId = new Map(folders.map((f) => [f.id, f]));
   const pathCache = new Map<number, string>();
+  // Iterative, not recursive: updateFolder blocks new cycles, but a row written
+  // before that guard existed would otherwise recurse until the stack blows.
+  // Walking up with a visited set degrades a cycle to a truncated path instead.
   const pathOf = (id: number): string => {
     const cached = pathCache.get(id);
     if (cached !== undefined) return cached;
-    const f = byId.get(id);
-    if (!f) return "";
-    const parent = f.parentId != null ? pathOf(f.parentId) : "";
-    const path = parent ? `${parent}/${f.name}` : f.name;
+
+    const chain: string[] = [];
+    const seen = new Set<number>();
+    let cursor: number | null = id;
+    while (cursor != null && !seen.has(cursor)) {
+      seen.add(cursor);
+      const f = byId.get(cursor);
+      if (!f) break; // parent belongs to someone else / was deleted
+      chain.unshift(f.name);
+      cursor = f.parentId;
+    }
+
+    const path = chain.join("/");
     pathCache.set(id, path);
     return path;
   };
@@ -177,12 +189,42 @@ export async function createFolder(userId: number, body: Body) {
   return prisma.folder.create({ data: { userId, name, parentId } });
 }
 
+/** True if re-parenting `id` under `proposedParentId` would close a loop —
+ *  i.e. the proposed parent is `id` itself or one of its descendants. Walks up
+ *  from the proposed parent; the visited set stops it even if the table already
+ *  contains a cycle from before this check existed. */
+async function wouldCreateCycle(
+  userId: number,
+  id: number,
+  proposedParentId: number,
+): Promise<boolean> {
+  const seen = new Set<number>();
+  let cursor: number | null = proposedParentId;
+  while (cursor != null) {
+    if (cursor === id) return true;
+    if (seen.has(cursor)) return true; // pre-existing loop above us
+    seen.add(cursor);
+    const parent: { parentId: number | null } | null = await prisma.folder.findFirst({
+      where: { id: cursor, userId },
+      select: { parentId: true },
+    });
+    cursor = parent?.parentId ?? null;
+  }
+  return false;
+}
+
 export async function updateFolder(userId: number, id: number, body: Body) {
   const existing = await prisma.folder.findFirst({ where: { id, userId } });
   if (!existing) throw new HttpError(404, "Folder not found.");
   const name = parseFolderName(body.name);
   const parentId = await resolveParent(userId, body.parentId);
-  if (parentId === id) throw new HttpError(400, "A folder can't be its own parent.");
+  // Moving a folder into its own subtree would make the hierarchy circular.
+  // listTemplatesWithPath walks parents recursively, so a cycle turns every
+  // later listing into a stack overflow — the user could permanently break
+  // their own library (and the 3Ds Max /v1/templates endpoint) with one move.
+  if (parentId != null && (await wouldCreateCycle(userId, id, parentId))) {
+    throw new HttpError(400, "A folder can't be moved into itself or one of its subfolders.");
+  }
   return prisma.folder.update({ where: { id }, data: { name, parentId } });
 }
 

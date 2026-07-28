@@ -7,22 +7,19 @@ import crypto from "node:crypto";
 // key is derived from TOKEN_ENC_KEY in .env, so any non-empty secret works as
 // key material.
 //
-// Stored format: "<version>:<iv>:<authTag>:<ciphertext>" (each part base64).
+// Stored format: "v2:<iv>:<authTag>:<ciphertext>" (each part base64), with the
+// key derived as HKDF-SHA256(TOKEN_ENC_KEY, salt, info).
 //
-//   v2 (current) — key = HKDF-SHA256(TOKEN_ENC_KEY, salt, info)
-//   v1 (read-only) — key = plain SHA-256(TOKEN_ENC_KEY)
+// v1 (key = a single plain SHA-256 of TOKEN_ENC_KEY, no salt or stretching) is
+// NOT readable here. Existing rows are converted up-front by
+// scripts/migrate-token-encryption.ts, which owns the only remaining copy of
+// that derivation — so the weak KDF cannot be reached from a served request.
 //
-// v1 is still *readable* so rows written before the change keep working; every
-// value is rewritten as v2 the next time it is stored (Spotify tokens get
-// rewritten on each refresh, so v1 rows disappear on their own within an hour
-// of active use). Nothing writes v1 any more.
-//
-// Unencrypted values are rejected outright — a plaintext passthrough would let
-// anyone with database write access opt out of encryption entirely.
+// Unencrypted values are rejected outright too: a plaintext passthrough would
+// let anyone with database write access opt out of encryption entirely.
 // ---------------------------------------------------------------------------
 
-const VERSION = "v2"; // what we write
-const LEGACY_VERSION = "v1"; // what we still read
+const VERSION = "v2";
 const ALGO = "aes-256-gcm";
 const IV_BYTES = 12; // standard nonce size for GCM
 const TAG_BYTES = 16; // full-length GCM auth tag — short tags weaken forgery resistance
@@ -51,11 +48,6 @@ function key(): Buffer {
   );
 }
 
-/** v1 key derivation — kept only so existing rows can still be read. */
-function legacyKey(): Buffer {
-  return crypto.createHash("sha256").update(secretMaterial()).digest();
-}
-
 /** Encrypts a plaintext secret for storage (always the current version). */
 export function encryptSecret(plain: string): string {
   const iv = crypto.randomBytes(IV_BYTES);
@@ -72,12 +64,13 @@ export function encryptSecret(plain: string): string {
   ].join(":");
 }
 
-/** Decrypts a stored secret. Throws on anything that is not a v1/v2 value. */
+/** Decrypts a stored secret. Throws on anything that is not a current value. */
 export function decryptSecret(stored: string): string {
   const [version, ivB64, tagB64, ctB64] = stored.split(":");
-  if (version !== VERSION && version !== LEGACY_VERSION) {
+  if (version !== VERSION) {
     throw new Error(
-      "Stored secret is not encrypted (or uses an unknown format) — refusing to use it.",
+      "Stored secret is not encrypted (or uses an unsupported format) — refusing to use it. " +
+        "Legacy v1 rows must be converted first: npm run migrate:tokens",
     );
   }
 
@@ -92,12 +85,9 @@ export function decryptSecret(stored: string): string {
     throw new Error("Malformed encrypted value: bad authentication tag length.");
   }
 
-  const decipher = crypto.createDecipheriv(
-    ALGO,
-    version === VERSION ? key() : legacyKey(),
-    iv,
-    { authTagLength: TAG_BYTES },
-  );
+  const decipher = crypto.createDecipheriv(ALGO, key(), iv, {
+    authTagLength: TAG_BYTES,
+  });
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(ct), decipher.final()]).toString("utf8");
 }

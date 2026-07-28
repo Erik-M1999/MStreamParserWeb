@@ -9,21 +9,30 @@ import { register, login, TOKEN_TTL_SECONDS } from "./auth.service.js";
 
 const router = Router();
 
-function setAuthCookie(res: Response, token: string) {
+// Mark the cookie Secure whenever the request actually arrived over HTTPS
+// (req.secure honours the proxy's X-Forwarded-Proto — see `trust proxy` in
+// server.ts), and always in production. Keying off the connection rather than
+// NODE_ENV alone means a non-production HTTPS deployment still gets a Secure
+// cookie, while plain-http local dev keeps working.
+function useSecureCookie(req: Request): boolean {
+  return req.secure || process.env.NODE_ENV === "production";
+}
+
+function setAuthCookie(req: Request, res: Response, token: string) {
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: useSecureCookie(req),
     maxAge: TOKEN_TTL_SECONDS * 1000,
     path: "/",
   });
 }
 
-function clearAuthCookie(res: Response) {
+function clearAuthCookie(req: Request, res: Response) {
   res.clearCookie(COOKIE_NAME, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: useSecureCookie(req),
     path: "/",
   });
 }
@@ -48,13 +57,13 @@ router.post(
   authLimiter,
   route(async (req, res) => {
     const { token, user } = await login((req.body ?? {}) as Record<string, unknown>);
-    setAuthCookie(res, token);
+    setAuthCookie(req, res, token);
     res.json(user);
   }),
 );
 
-router.post("/auth/logout", (_req: Request, res: Response) => {
-  clearAuthCookie(res);
+router.post("/auth/logout", (req: Request, res: Response) => {
+  clearAuthCookie(req, res);
   res.json({ ok: true });
 });
 
