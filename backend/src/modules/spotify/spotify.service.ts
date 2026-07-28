@@ -78,6 +78,23 @@ export async function disconnect(userId: number): Promise<void> {
   await prisma.connection.deleteMany({ where: { userId, provider: PROVIDER } });
 }
 
+// ---------------------------------------------------------------------------
+// Refresh-token expiration (Spotify, enforced from 2026-07-20)
+//
+// Refresh tokens now die 6 months after the user authorized, and refreshing an
+// access token does NOT extend that clock — so every connection eventually
+// needs the user to re-authorize. Spotify signals a dead grant with
+// 400 + {"error":"invalid_grant"}; it will never succeed again, so we discard
+// the stored connection rather than retrying it on every request, and report a
+// distinct error so callers can prompt for reconnection.
+// ---------------------------------------------------------------------------
+export const REAUTH_REQUIRED = "spotify_reauth_required";
+
+/** True if `err` means the user must re-authorize Spotify (dead refresh token). */
+export function isReauthRequired(err: unknown): boolean {
+  return err instanceof Error && err.message === REAUTH_REQUIRED;
+}
+
 async function refreshAndStore(userId: number, refreshToken: string): Promise<string> {
   const res = await fetch(SPOTIFY_TOKEN_URL, {
     method: "POST",
@@ -90,7 +107,27 @@ async function refreshAndStore(userId: number, refreshToken: string): Promise<st
       refresh_token: refreshToken,
     }),
   });
-  if (!res.ok) throw new Error("refresh_failed");
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    let errorCode: string | undefined;
+    try {
+      errorCode = (JSON.parse(body) as { error?: string }).error;
+    } catch {
+      /* non-JSON error body — fall through to the generic failure */
+    }
+    // Expired (6-month lifetime), revoked by the user, or otherwise invalid.
+    if (res.status === 400 && errorCode === "invalid_grant") {
+      await disconnect(userId); // drop the dead tokens; the row is worthless now
+      console.warn(
+        `[spotify] refresh token rejected for user ${userId} — reauthorization required`,
+      );
+      throw new Error(REAUTH_REQUIRED);
+    }
+    console.error(`[spotify] token refresh failed ${res.status}:`, body);
+    throw new Error("refresh_failed");
+  }
+
   const data = (await res.json()) as {
     access_token: string;
     expires_in: number;

@@ -18,6 +18,11 @@ vi.mock("../src/modules/spotify/spotify.service", () => ({
   getNowPlaying: vi.fn(),
   getDebugInfo: vi.fn(),
   toNowPlayingPayload: vi.fn((r: unknown) => ({ payload: r })),
+  // Real implementation: the routes use it to map an expired Spotify grant to a
+  // "reconnect" response instead of a generic 502.
+  REAUTH_REQUIRED: "spotify_reauth_required",
+  isReauthRequired: (err: unknown) =>
+    err instanceof Error && err.message === "spotify_reauth_required",
 }));
 vi.mock("../src/modules/lastfm/lastfm.service", () => ({
   verifyAndConnect: vi.fn(),
@@ -233,6 +238,26 @@ describe("spotify routes", () => {
     sp.getProfile.mockRejectedValueOnce(new Error("not_connected"));
     const disconnected = await fetch(`${app.base}/api/spotify/me`, { headers: { Cookie: cookie } });
     expect(disconnected.status).toBe(409);
+    expect(await disconnected.json()).toMatchObject({ code: "spotify_not_connected" });
+  });
+
+  // Spotify's 6-month refresh-token expiry: the client needs to tell "reconnect"
+  // apart from "Spotify is down", so it gets a 409 + machine-readable code rather
+  // than the generic 502.
+  it("me: returns 409 + a reauth code when the Spotify grant has expired", async () => {
+    sp.getProfile.mockRejectedValueOnce(new Error("spotify_reauth_required"));
+    const res = await fetch(`${app.base}/api/spotify/me`, { headers: { Cookie: cookie } });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error: expect.stringMatching(/expired/i),
+      code: "spotify_reauth_required",
+    });
+  });
+
+  it("me: still returns 502 for a genuine Spotify outage", async () => {
+    sp.getProfile.mockRejectedValueOnce(new Error("refresh_failed"));
+    const res = await fetch(`${app.base}/api/spotify/me`, { headers: { Cookie: cookie } });
+    expect(res.status).toBe(502);
   });
 
   it("playlists list + export, with a 404 for an unknown playlist and 502 on failure", async () => {

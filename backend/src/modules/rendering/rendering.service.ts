@@ -4,6 +4,7 @@ import {
   getQueue,
   getPlaylists,
   getValidAccessToken,
+  isReauthRequired,
 } from "../spotify/spotify.service.js";
 import { fillTemplate, type TemplateFill } from "../../svgTemplate.js";
 import { HttpError } from "../../shared/errors.js";
@@ -131,10 +132,18 @@ async function buildFill(
 export async function render(userId: number, svg: string, mode: string): Promise<string> {
   if (!svg.trim()) throw new HttpError(400, "No SVG template was provided.");
 
-  // Must have a Spotify connection.
+  // Must have a Spotify connection. A grant that expired (Spotify's 6-month
+  // refresh-token lifetime) gets its own message so the user knows to reconnect
+  // rather than thinking they were never connected.
   try {
     await getValidAccessToken(userId);
-  } catch {
+  } catch (err) {
+    if (isReauthRequired(err)) {
+      throw new HttpError(
+        409,
+        "Your Spotify authorization has expired. Reconnect Spotify and try again.",
+      );
+    }
     throw new HttpError(409, "Connect your Spotify account first.");
   }
 

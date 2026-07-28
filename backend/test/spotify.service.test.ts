@@ -14,7 +14,7 @@ vi.mock("../src/db", () => ({
 }));
 
 import { prisma } from "../src/db";
-import { encryptSecret } from "../src/crypto";
+import { encryptSecret, decryptSecret } from "../src/crypto";
 import * as spotify from "../src/modules/spotify/spotify.service";
 
 const conn = prisma.connection as unknown as {
@@ -133,13 +133,98 @@ describe("spotify: getValidAccessToken", () => {
     expect(conn.update).toHaveBeenCalledTimes(1);
   });
 
-  it("throws refresh_failed when Spotify rejects the refresh", async () => {
+  it("throws refresh_failed when Spotify fails transiently", async () => {
     conn.findUnique.mockResolvedValueOnce({
       ...validConnection(),
       expiresAt: new Date(Date.now() - 1_000),
     });
-    mockFetchSequence(jsonResponse({ error: "invalid_grant" }, 400));
+    mockFetchSequence(jsonResponse({ error: "server_error" }, 500));
     await expect(spotify.getValidAccessToken(USER)).rejects.toThrow("refresh_failed");
+    // A transient failure must NOT throw away a still-valid refresh token.
+    expect(conn.deleteMany).not.toHaveBeenCalled();
+  });
+
+  // Spotify expires refresh tokens 6 months after authorization (enforced from
+  // 2026-07-20) and reports the dead grant as 400 invalid_grant.
+  describe("expired refresh token (invalid_grant)", () => {
+    function expiringConnection() {
+      conn.findUnique.mockResolvedValueOnce({
+        ...validConnection(),
+        expiresAt: new Date(Date.now() - 1_000),
+      });
+    }
+
+    it("reports reauth_required instead of a generic failure", async () => {
+      expiringConnection();
+      mockFetchSequence(jsonResponse({ error: "invalid_grant" }, 400));
+      await expect(spotify.getValidAccessToken(USER)).rejects.toThrow(
+        spotify.REAUTH_REQUIRED,
+      );
+    });
+
+    it("discards the dead connection so it is not retried forever", async () => {
+      expiringConnection();
+      mockFetchSequence(jsonResponse({ error: "invalid_grant" }, 400));
+      await expect(spotify.getValidAccessToken(USER)).rejects.toThrow();
+      expect(conn.deleteMany).toHaveBeenCalledWith({
+        where: { userId: USER, provider: "spotify" },
+      });
+      // The dead tokens must not be written back.
+      expect(conn.update).not.toHaveBeenCalled();
+    });
+
+    it("is recognised by isReauthRequired (and other errors are not)", async () => {
+      expiringConnection();
+      mockFetchSequence(jsonResponse({ error: "invalid_grant" }, 400));
+      const err = await spotify.getValidAccessToken(USER).catch((e: unknown) => e);
+      expect(spotify.isReauthRequired(err)).toBe(true);
+      expect(spotify.isReauthRequired(new Error("refresh_failed"))).toBe(false);
+      expect(spotify.isReauthRequired(new Error("not_connected"))).toBe(false);
+      expect(spotify.isReauthRequired("not an error")).toBe(false);
+    });
+
+    it("treats a non-JSON 400 body as a transient failure, keeping the connection", async () => {
+      expiringConnection();
+      mockFetchSequence(textResponse("Bad Request", 400));
+      await expect(spotify.getValidAccessToken(USER)).rejects.toThrow("refresh_failed");
+      expect(conn.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it("does not treat a 400 with a different error code as expiry", async () => {
+      expiringConnection();
+      mockFetchSequence(jsonResponse({ error: "invalid_client" }, 400));
+      await expect(spotify.getValidAccessToken(USER)).rejects.toThrow("refresh_failed");
+      expect(conn.deleteMany).not.toHaveBeenCalled();
+    });
+  });
+
+  // Spotify may rotate the refresh token on any refresh; dropping the new one
+  // would strand the connection at the next refresh.
+  it("stores a rotated refresh token, and keeps the old one when none is sent", async () => {
+    conn.findUnique.mockResolvedValueOnce({
+      ...validConnection(),
+      expiresAt: new Date(Date.now() - 1_000),
+    });
+    mockFetchSequence(
+      jsonResponse({
+        access_token: "fresh",
+        refresh_token: "rotated-refresh-token",
+        expires_in: 3600,
+      }),
+    );
+    await spotify.getValidAccessToken(USER);
+    const rotated = conn.update.mock.calls[0][0].data.refreshToken as string;
+    expect(decryptSecret(rotated)).toBe("rotated-refresh-token");
+
+    conn.update.mockClear();
+    conn.findUnique.mockResolvedValueOnce({
+      ...validConnection(),
+      expiresAt: new Date(Date.now() - 1_000),
+    });
+    mockFetchSequence(jsonResponse({ access_token: "fresh2", expires_in: 3600 }));
+    await spotify.getValidAccessToken(USER);
+    const kept = conn.update.mock.calls[0][0].data.refreshToken as string;
+    expect(decryptSecret(kept)).toBe("stored-refresh-token");
   });
 });
 

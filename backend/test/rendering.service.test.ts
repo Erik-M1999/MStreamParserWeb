@@ -8,6 +8,11 @@ vi.mock("../src/modules/spotify/spotify.service", () => ({
   getNowPlaying: vi.fn(),
   getQueue: vi.fn(),
   getPlaylists: vi.fn(),
+  // Real implementation: rendering only needs to tell an expired grant apart
+  // from "never connected" so it can show the right message.
+  REAUTH_REQUIRED: "spotify_reauth_required",
+  isReauthRequired: (err: unknown) =>
+    err instanceof Error && err.message === "spotify_reauth_required",
 }));
 
 import * as spotify from "../src/modules/spotify/spotify.service";
@@ -74,7 +79,22 @@ describe("render", () => {
 
   it("returns 409 when Spotify is not connected", async () => {
     mocked.getValidAccessToken.mockRejectedValueOnce(new Error("not_connected"));
-    await expect(render(1, TEMPLATE, "current-song")).rejects.toMatchObject({ status: 409 });
+    await expect(render(1, TEMPLATE, "current-song")).rejects.toMatchObject({
+      status: 409,
+      message: expect.stringMatching(/Connect your Spotify account/i),
+    });
+  });
+
+  // An expired grant (Spotify's 6-month refresh-token lifetime) must not read as
+  // "you were never connected" — the user has to re-authorize.
+  it("returns 409 telling the user to reconnect when the grant has expired", async () => {
+    mocked.getValidAccessToken.mockRejectedValueOnce(
+      new Error("spotify_reauth_required"),
+    );
+    await expect(render(1, TEMPLATE, "current-song")).rejects.toMatchObject({
+      status: 409,
+      message: expect.stringMatching(/expired.*[Rr]econnect/s),
+    });
   });
 
   it("fills a current-song template with the playing track (and inlines the cover)", async () => {

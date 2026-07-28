@@ -10,10 +10,22 @@ const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN ?? "http://127.0.0.1:5173";
 
 const userIdOf = (req: Request) => (req as AuthedRequest).user!.userId;
 
+// Spotify expired the user's grant (6-month refresh-token lifetime). The stored
+// connection is already gone by the time this runs — the user must reconnect.
+export const REAUTH_MESSAGE =
+  "Your Spotify authorization has expired. Please reconnect your Spotify account.";
+
 /** Maps Spotify service errors to HTTP responses. */
 function handleSpotifyError(err: unknown, res: Response) {
+  if (spotify.isReauthRequired(err)) {
+    res.status(409).json({ error: REAUTH_MESSAGE, code: spotify.REAUTH_REQUIRED });
+    return;
+  }
   if (err instanceof Error && err.message === "not_connected") {
-    res.status(409).json({ error: "Connect your Spotify account first." });
+    res.status(409).json({
+      error: "Connect your Spotify account first.",
+      code: "spotify_not_connected",
+    });
     return;
   }
   console.error("[spotify] error:", err);
@@ -126,6 +138,8 @@ router.get("/spotify/now-playing/stream", authenticate, (req: Request, res: Resp
 
   let closed = false;
   let lastPayload = ""; // only push when the serialized payload changes
+  let poll: ReturnType<typeof setInterval> | undefined;
+  let reauthNeeded = false; // set once the grant is dead — stops the polling
 
   async function tick() {
     if (closed) return;
@@ -137,13 +151,35 @@ router.get("/spotify/now-playing/stream", authenticate, (req: Request, res: Resp
         lastPayload = payload;
         res.write(`data: ${payload}\n\n`);
       }
-    } catch {
-      // Transient Spotify/refresh error — skip this tick and try again later.
+    } catch (err) {
+      // A dead refresh token never recovers on its own, so stop polling instead
+      // of retrying every 6s forever. We keep the stream open (ending it would
+      // just make EventSource reconnect into the same dead state) and tell the
+      // client to prompt for reconnection.
+      if (spotify.isReauthRequired(err)) {
+        reauthNeeded = true;
+        if (poll) clearInterval(poll);
+        res.write(
+          `event: reauth\ndata: ${JSON.stringify({
+            error: REAUTH_MESSAGE,
+            code: spotify.REAUTH_REQUIRED,
+          })}\n\n`,
+        );
+      }
+      // Anything else is transient — skip this tick and try again later.
     }
   }
 
   void tick(); // push the current state immediately
-  const poll = setInterval(() => void tick(), 6000);
+  // The flag is re-checked here because the first tick can settle either before
+  // or after this line, depending on where it failed.
+  poll = setInterval(() => {
+    if (reauthNeeded) {
+      clearInterval(poll);
+      return;
+    }
+    void tick();
+  }, 6000);
   const heartbeat = setInterval(() => {
     if (!closed) res.write(": ping\n\n"); // comment line keeps the connection warm
   }, 25000);
