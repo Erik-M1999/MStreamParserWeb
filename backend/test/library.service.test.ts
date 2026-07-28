@@ -92,6 +92,14 @@ describe("library: templates", () => {
     expect(rootOnly.map((t) => t.id)).toContain(loose.id);
     expect(rootOnly.map((t) => t.id)).not.toContain(inFolder.id);
 
+    // A non-numeric folderId used to reach Prisma as NaN and surface as a 500.
+    // " " and "0x10" are in here because Number() would quietly make them 0/16.
+    for (const bad of ["abc", "1.5", "1e999", " ", "12abc", "0x10", "-1"]) {
+      await expect(library.listTemplates(userId, bad)).rejects.toMatchObject({
+        status: 400,
+      });
+    }
+
     const folderTemplates = await library.listFolderTemplates(userId, folder.id);
     expect(folderTemplates.map((t) => t.id)).toEqual([inFolder.id]);
 

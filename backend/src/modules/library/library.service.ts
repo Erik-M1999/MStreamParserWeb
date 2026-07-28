@@ -61,11 +61,21 @@ async function resolveParent(userId: number, parentId: unknown): Promise<number 
 
 // --- templates ------------------------------------------------------------
 
-export function listTemplates(userId: number, folderIdQuery?: string) {
+export async function listTemplates(userId: number, folderIdQuery?: string) {
   const where: { userId: number; folderId?: number | null } = { userId };
   if (typeof folderIdQuery === "string") {
-    where.folderId =
-      folderIdQuery === "null" || folderIdQuery === "" ? null : Number(folderIdQuery);
+    if (folderIdQuery === "null" || folderIdQuery === "") {
+      where.folderId = null;
+    } else {
+      // Digits only, deliberately stricter than Number(): that would turn "abc"
+      // into NaN (which Prisma rejects at query time as an unhandled 500), but
+      // also silently accept " " as 0 and "0x10" as 16 — querying a folder the
+      // caller never asked for. Ids are positive autoincrement integers.
+      if (!/^\d+$/.test(folderIdQuery)) {
+        throw new HttpError(400, "Invalid folderId.");
+      }
+      where.folderId = Number(folderIdQuery);
+    }
   }
   return prisma.template.findMany({ where, orderBy: { name: "asc" } });
 }

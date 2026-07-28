@@ -57,13 +57,53 @@ function findSlot(doc: AnyNode, name: string): AnyNode | null {
   );
 }
 
+// ---------------------------------------------------------------------------
+// SVG sanitizing (defense-in-depth behind the CSP in shared/svgResponse.ts —
+// neither layer is trusted on its own).
+//
+// SVG can carry script in more places than a <script> tag: <foreignObject> can
+// embed arbitrary HTML (<iframe src="javascript:...">), and the animation
+// elements can rewrite another element's href or on* handler at runtime. So we
+// drop those element types outright and vet every URL-bearing attribute by
+// scheme, rather than pattern-matching for "javascript:".
+// ---------------------------------------------------------------------------
+
+/** Element types removed wholesale — none has a legitimate use in a template. */
+const REMOVED_TAGS = new Set([
+  "script",
+  "foreignobject", // escape hatch into full HTML
+  "iframe",
+  "object",
+  "embed",
+  "handler", // SVG 1.2 event handler element
+]);
+
+/** Animation elements: dangerous only when they retarget href / an on* handler. */
+const ANIMATION_TAGS = new Set([
+  "animate",
+  "set",
+  "animatetransform",
+  "animatemotion",
+  "animatecolor",
+]);
+
 /**
- * Removes active content from a parsed SVG: <script> elements anywhere in the
- * tree (including inside <foreignObject>), on* event-handler attributes, and
- * javascript: URLs. Purely subtractive — layout, styling and slot markers are
- * untouched. This is belt-and-braces next to the CSP in shared/svgResponse.ts;
- * neither alone is trusted.
+ * True for URL schemes that can execute or smuggle markup. Relative URLs and
+ * fragments (`#slot`) are fine, as are http(s) and `data:` *images* — the cover
+ * art we inline is exactly that (and is added after sanitizing, so it is never
+ * subject to this check anyway).
  */
+function isDangerousUrl(value: string): boolean {
+  // Strip whitespace/control chars first: "java\nscript:" is one bypass trick.
+  const v = value.replace(/[\s\u0000-\u001F]/g, "").toLowerCase();
+  if (!/^[a-z][a-z0-9+.-]*:/.test(v)) return false; // relative or fragment
+  if (v.startsWith("https:") || v.startsWith("http:")) return false;
+  if (v.startsWith("data:image/")) return false;
+  return true; // javascript:, data:text/html, blob:, file:, …
+}
+
+const isHrefAttr = (name: string) => /(^|:)href$/i.test(name);
+
 function stripActiveAttributes(el: AnyNode): void {
   const attrs = el.attributes;
   // Walk backwards: removing an attribute shifts the ones after it.
@@ -71,10 +111,15 @@ function stripActiveAttributes(el: AnyNode): void {
     const attr = attrs[a];
     const attrName: string = attr.name ?? "";
     const isHandler = attrName.toLowerCase().startsWith("on");
-    const isJsUrl =
-      /(^|:)href$/i.test(attrName) && /^\s*javascript:/i.test(attr.value ?? "");
-    if (isHandler || isJsUrl) el.removeAttribute(attrName);
+    const isBadUrl = isHrefAttr(attrName) && isDangerousUrl(attr.value ?? "");
+    if (isHandler || isBadUrl) el.removeAttribute(attrName);
   }
+}
+
+/** True if an animation element would write to href or an on* handler. */
+function retargetsActiveAttribute(el: AnyNode): boolean {
+  const target = (el.getAttribute("attributeName") ?? "").trim().toLowerCase();
+  return target.startsWith("on") || isHrefAttr(target);
 }
 
 function stripActiveContent(el: AnyNode): void {
@@ -84,7 +129,8 @@ function stripActiveContent(el: AnyNode): void {
   for (let i = children.length - 1; i >= 0; i--) {
     const child = children[i];
     if (child.nodeType !== 1) continue; // element nodes only
-    if (tagOf(child) === "script") {
+    const tag = tagOf(child);
+    if (REMOVED_TAGS.has(tag) || (ANIMATION_TAGS.has(tag) && retargetsActiveAttribute(child))) {
       el.removeChild(child);
       continue;
     }

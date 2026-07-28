@@ -7,7 +7,11 @@ vi.mock("../src/db", () => ({
   },
 }));
 // Fire-and-forget welcome email — stub so register never touches Resend.
-vi.mock("../src/mail", () => ({ sendWelcomeEmail: vi.fn() }));
+// Resolves like the real one: register attaches a .catch() to the returned
+// promise, so a mock returning undefined would not match the real signature.
+vi.mock("../src/mail", () => ({
+  sendWelcomeEmail: vi.fn(async () => {}),
+}));
 
 import { prisma } from "../src/db";
 import { sendWelcomeEmail } from "../src/mail";
@@ -49,6 +53,22 @@ describe("auth.service register", () => {
     expect(createArg.passwordHash).not.toBe("password123"); // hashed
     expect(await bcrypt.compare("password123", createArg.passwordHash)).toBe(true);
     expect(mailMock).toHaveBeenCalledWith("new@example.com", "erik");
+  });
+
+  // The mail send is fire-and-forget. If a rejection escaped, Node would treat
+  // it as an unhandled rejection and kill the process — i.e. anyone could crash
+  // the server by registering while the mail provider is down.
+  it("still succeeds when the welcome email rejects", async () => {
+    mailMock.mockRejectedValueOnce(new Error("resend is down"));
+    const unhandled = vi.fn();
+    process.once("unhandledRejection", unhandled);
+
+    await expect(register({ ...validBody })).resolves.toMatchObject({ username: "erik" });
+
+    // Give the rejected promise a turn to surface before asserting.
+    await new Promise((r) => setImmediate(r));
+    expect(unhandled).not.toHaveBeenCalled();
+    process.off("unhandledRejection", unhandled);
   });
 });
 

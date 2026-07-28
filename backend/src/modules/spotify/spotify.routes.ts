@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { authenticate, type AuthedRequest } from "../../middleware/authenticate.js";
+import { createStreamLimiter } from "../../shared/streamLimit.js";
 import * as spotify from "./spotify.service.js";
 
 // Spotify routes (thin). HTTP concerns only: OAuth redirects, SSE streaming,
@@ -127,8 +128,18 @@ router.get("/spotify/now-playing", authenticate, async (req: Request, res: Respo
 // Live now-playing via Server-Sent Events. The server polls per connected client
 // and emits an event only when the track changes; EventSource auto-reconnects on
 // drop. One-way (server -> client); see the README's SSE vs WebSockets note.
+const streamLimiter = createStreamLimiter();
+
 router.get("/spotify/now-playing/stream", authenticate, (req: Request, res: Response) => {
   const userId = userIdOf(req);
+
+  // Each stream polls Spotify every 6s; cap how many one account can hold open
+  // so a pile of tabs can't burn through our API quota.
+  const slot = streamLimiter.acquire(userId);
+  if (!slot) {
+    res.status(429).json({ error: "Too many open now-playing streams." });
+    return;
+  }
 
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache, no-transform");
@@ -188,6 +199,7 @@ router.get("/spotify/now-playing/stream", authenticate, (req: Request, res: Resp
     closed = true;
     clearInterval(poll);
     clearInterval(heartbeat);
+    slot.release();
     res.end();
   });
 });

@@ -39,8 +39,41 @@ export function svgToPng(svg: string, longest?: number): Buffer {
 // Internal: buildFill, fetchCoverDataUri, ConflictError
 // ---------------------------------------------------------------------------
 
+// Cover URLs arrive inside Spotify/Last.fm API responses, so they are not
+// user-typed — but they are still values from a third party that we hand
+// straight to fetch(). Restricting them to the providers' image CDNs means a
+// compromised or spoofed upstream response can't turn this into a probe of our
+// own network (the response body is base64'd into the SVG we return, so an SSRF
+// here would leak whatever it reached).
+const ALLOWED_COVER_HOSTS = [
+  ".scdn.co", // Spotify album/playlist art (i., mosaic., lineup-images., …)
+  ".spotifycdn.com", // newer Spotify image CDN
+  "lastfm.freetls.fastly.net", // Last.fm art
+  ".last.fm",
+];
+
+function isAllowedCoverUrl(url: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== "https:") return false;
+  const host = parsed.hostname.toLowerCase();
+  return ALLOWED_COVER_HOSTS.some((h) =>
+    h.startsWith(".") ? host.endsWith(h) : host === h,
+  );
+}
+
 /** Fetch the cover image and inline it as a data URI (portable, self-contained). */
 async function fetchCoverDataUri(url: string): Promise<string | null> {
+  if (!isAllowedCoverUrl(url)) {
+    // Not fatal: the template just renders without art. Logged so a genuinely
+    // new provider CDN shows up here instead of silently losing every cover.
+    console.warn("[rendering] refusing cover URL from unexpected host:", url);
+    return null;
+  }
   try {
     const res = await fetch(url);
     if (!res.ok) return null;

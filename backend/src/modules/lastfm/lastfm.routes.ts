@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { authenticate, type AuthedRequest } from "../../middleware/authenticate.js";
+import { createStreamLimiter } from "../../shared/streamLimit.js";
 import * as lastfm from "./lastfm.service.js";
 
 // Last.fm routes (thin). Connect stores a verified username; the reads mirror
@@ -74,8 +75,18 @@ router.get("/lastfm/now-playing", authenticate, async (req: Request, res: Respon
 
 // Live now-playing via SSE (mirrors the Spotify stream). Polls Last.fm on a
 // gentler interval since its rate limits are informal ("don't call several/sec").
+const streamLimiter = createStreamLimiter();
+
 router.get("/lastfm/now-playing/stream", authenticate, (req: Request, res: Response) => {
   const userId = userIdOf(req);
+
+  // Each stream polls Last.fm every 12s; cap how many one account can hold open
+  // so a pile of tabs can't trip Last.fm's rate limiting for everyone.
+  const slot = streamLimiter.acquire(userId);
+  if (!slot) {
+    res.status(429).json({ error: "Too many open now-playing streams." });
+    return;
+  }
 
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache, no-transform");
@@ -111,6 +122,7 @@ router.get("/lastfm/now-playing/stream", authenticate, (req: Request, res: Respo
     closed = true;
     clearInterval(poll);
     clearInterval(heartbeat);
+    slot.release();
     res.end();
   });
 });

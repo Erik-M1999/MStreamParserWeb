@@ -45,7 +45,12 @@ export async function register(body: Body): Promise<{ id: number; username: stri
     data: { email: emailN, username: usernameN, passwordHash },
   });
   // Fire-and-forget: the (slow, external) mail send never blocks/fails register.
-  void sendWelcomeEmail(emailN, usernameN);
+  // sendWelcomeEmail already swallows its own errors; the .catch() is a belt so
+  // a future change there can't turn register into an unhandled rejection (which
+  // Node treats as fatal) and hand anyone a way to crash the process.
+  void sendWelcomeEmail(emailN, usernameN).catch((err: unknown) => {
+    console.error("[auth] welcome email failed:", err);
+  });
   return { id: user.id, username: user.username };
 }
 

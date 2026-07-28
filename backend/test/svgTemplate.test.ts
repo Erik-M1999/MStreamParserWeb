@@ -157,6 +157,73 @@ describe("fillTemplate", () => {
       expect(out).toContain("https://example.com/ok");
     });
 
+    // <foreignObject> is a doorway into full HTML, so the element goes entirely
+    // rather than us trying to sanitize HTML inside an SVG sanitizer.
+    it("removes foreignObject and other HTML-embedding elements", () => {
+      const hostile = `<svg xmlns="http://www.w3.org/2000/svg">
+        <foreignObject><iframe src="javascript:alert(1)"></iframe></foreignObject>
+        <object data="javascript:alert(2)"></object>
+        <embed src="javascript:alert(3)"/>
+        <text template-id="title">OLD</text>
+      </svg>`;
+      const out = fillTemplate(hostile, { text: { title: "safe" }, images: noImages });
+      expect(out).not.toMatch(/foreignObject|iframe|<object|<embed/i);
+      expect(out).not.toMatch(/javascript:/i);
+      expect(out).toContain("safe");
+    });
+
+    // <animate> can rewrite another element's href/handler at runtime.
+    it("removes animation elements that retarget href or an on* handler", () => {
+      const hostile = `<svg xmlns="http://www.w3.org/2000/svg">
+        <a><animate attributeName="href" to="javascript:alert(1)"/>
+           <text template-id="title">OLD</text></a>
+        <rect><set attributeName="onload" to="alert(2)"/></rect>
+      </svg>`;
+      const out = fillTemplate(hostile, { text: { title: "safe" }, images: noImages });
+      expect(out).not.toMatch(/javascript:|onload/i);
+      expect(out).not.toMatch(/<animate|<set/i);
+    });
+
+    // …but ordinary animation of geometry is harmless and must survive.
+    it("keeps animation that targets a harmless attribute", () => {
+      const benign = `<svg xmlns="http://www.w3.org/2000/svg">
+        <rect template-id="cover" x="0" y="0" width="5" height="5">
+          <animate attributeName="opacity" values="0;1" dur="1s"/>
+        </rect>
+        <text template-id="title">OLD</text>
+      </svg>`;
+      const out = fillTemplate(benign, { text: { title: "safe" }, images: noImages });
+      expect(out).toContain("<animate");
+      expect(out).toContain('attributeName="opacity"');
+    });
+
+    it("blocks dangerous URL schemes while keeping fragments and data images", () => {
+      const mixed = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+        <use href="#shape"/>
+        <image xlink:href="data:image/png;base64,AAAA"/>
+        <a href="data:text/html,&lt;script&gt;alert(1)&lt;/script&gt;"><text template-id="title">OLD</text></a>
+        <a xlink:href="blob:https://evil.example/x"><text template-id="artist">OLD</text></a>
+      </svg>`;
+      const out = fillTemplate(mixed, {
+        text: { title: "safe", artist: "safe" },
+        images: noImages,
+      });
+      expect(out).toContain('href="#shape"'); // fragment reference kept
+      expect(out).toContain("data:image/png;base64,AAAA"); // inline image kept
+      expect(out).not.toMatch(/data:text\/html/i);
+      expect(out).not.toMatch(/blob:/i);
+    });
+
+    // "java\nscript:" survives a naive prefix check but not a scheme check.
+    it("sees through whitespace and control chars in a scheme", () => {
+      const hostile =
+        '<svg xmlns="http://www.w3.org/2000/svg">' +
+        '<a href="java\nscript:alert(1)"><text template-id="title">OLD</text></a>' +
+        "</svg>";
+      const out = fillTemplate(hostile, { text: { title: "safe" }, images: noImages });
+      expect(out).not.toMatch(/script:/i);
+    });
+
     it("leaves a clean template untouched", () => {
       const out = fillTemplate(CLASSIC, {
         text: { title: "T", artist: "A" },

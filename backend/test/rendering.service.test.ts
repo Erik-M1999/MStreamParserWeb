@@ -100,7 +100,7 @@ describe("render", () => {
   it("fills a current-song template with the playing track (and inlines the cover)", async () => {
     mocked.getNowPlaying.mockResolvedValueOnce({
       state: "track",
-      track: { artist: "Queen", title: "Bohemian Rhapsody", album: "A", coverUrl: "http://cover" },
+      track: { artist: "Queen", title: "Bohemian Rhapsody", album: "A", coverUrl: "https://i.scdn.co/image/ab67616d0000b273cover" },
     });
     // Cover fetch -> a tiny image, inlined as a data URI.
     vi.stubGlobal(
@@ -168,10 +168,65 @@ describe("render", () => {
     await expect(render(1, noSlots, "current-song")).rejects.toMatchObject({ status: 400 });
   });
 
+  // Cover URLs come from the provider's API response, not from us. If one ever
+  // points somewhere unexpected, we must not fetch it and base64 the reply into
+  // the SVG we hand back — that would be a readable SSRF.
+  it("refuses to fetch a cover from a host outside the provider CDNs", async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(Buffer.from("internal secret"), {
+          status: 200,
+          headers: { "content-type": "image/jpeg" },
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    for (const coverUrl of [
+      "http://169.254.169.254/latest/meta-data/", // cloud metadata
+      "https://evil.example/pixel.jpg", // attacker-controlled host
+      "http://i.scdn.co/image/x", // right host, but plaintext http
+      "file:///etc/passwd",
+    ]) {
+      mocked.getNowPlaying.mockResolvedValueOnce({
+        state: "track",
+        track: { artist: "A", title: "T", album: "", coverUrl },
+      });
+      const out = await render(1, TEMPLATE, "current-song");
+      expect(out).toContain("T"); // text still fills; the cover is just skipped
+      expect(out).not.toContain("data:");
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("accepts covers from the Spotify and Last.fm CDNs", async () => {
+    for (const coverUrl of [
+      "https://i.scdn.co/image/ab67616d00001e02",
+      "https://mosaic.scdn.co/640/abc",
+      "https://lastfm.freetls.fastly.net/i/u/300x300/abc.png",
+    ]) {
+      mocked.getNowPlaying.mockResolvedValueOnce({
+        state: "track",
+        track: { artist: "A", title: "T", album: "", coverUrl },
+      });
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(
+          async () =>
+            new Response(Buffer.from([1, 2, 3]), {
+              status: 200,
+              headers: { "content-type": "image/jpeg" },
+            }),
+        ),
+      );
+      const out = await render(1, TEMPLATE, "current-song");
+      expect(out).toContain("data:image/jpeg;base64,");
+    }
+  });
+
   it("degrades gracefully when the cover download fails", async () => {
     mocked.getNowPlaying.mockResolvedValueOnce({
       state: "track",
-      track: { artist: "A", title: "T", album: "", coverUrl: "http://cover" },
+      track: { artist: "A", title: "T", album: "", coverUrl: "https://i.scdn.co/image/ab67616d0000b273cover" },
     });
     vi.stubGlobal("fetch", vi.fn(async () => new Response("nope", { status: 500 })));
     const out = await render(1, TEMPLATE, "current-song");
