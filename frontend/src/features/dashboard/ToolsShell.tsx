@@ -113,7 +113,7 @@ export default function ToolsShell({
         open={infoOpen}
         onClose={() => setInfoOpen(false)}
         title="How SVG Texture Labs works"
-        size="small"
+        size="medium"
       >
         <div className="space-y-4 type-body-md text-on-surface-variant">
           <p>
