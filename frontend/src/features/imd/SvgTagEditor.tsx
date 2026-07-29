@@ -1,7 +1,30 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { analyzeSvg, applyTags, suggestSlot } from "@/features/imd/lib/tagEditor";
+import { focusSvgToContent } from "@/features/imd/lib/focusSvg";
+import { BACKEND_URL } from "@/shared/config";
+
+interface Box {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+/** Live-DOM taggable elements in document order. Includes <image> because a
+ *  filled cover <rect> is swapped for an <image> in place — so index i still
+ *  lines up with the plain template's Candidate `ref`. */
+function liveCandidates(root: Element): Element[] {
+  const out: Element[] = [];
+  const walk = (el: Element) => {
+    const t = (el.localName || el.tagName || "").toLowerCase();
+    if (t === "text" || t === "rect" || t === "image") out.push(el);
+    for (const c of Array.from(el.children)) walk(c);
+  };
+  for (const c of Array.from(root.children)) walk(c);
+  return out;
+}
 
 export default function SvgTagEditor({
   svg,
@@ -15,6 +38,20 @@ export default function SvgTagEditor({
   onClose: () => void;
 }) {
   const analysis = useMemo(() => analyzeSvg(svg, mode), [svg, mode]);
+
+  // Plain, artwork-focused preview. focusSvgToContent strips <script>/on* so
+  // it's safe to render inline. `filled` (the live partial render) overrides it.
+  const plainPreview = useMemo(() => focusSvgToContent(svg), [svg]);
+  const [filled, setFilled] = useState<string | null>(null);
+  const displaySvg = filled ?? plainPreview;
+
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [showSource, setShowSource] = useState(false);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const baseRef = useRef<HTMLDivElement>(null);
+  const [box, setBox] = useState<Box | null>(null);
 
   const [assignments, setAssignments] = useState<Record<number, string | null>>(
     () => {
@@ -30,20 +67,81 @@ export default function SvgTagEditor({
     const a: Record<number, string | null> = {};
     for (const c of analysis.candidates) a[c.ref] = c.tagValid ? c.currentTag : null;
     setAssignments(a);
+    setFilled(null);
+    setBox(null);
+    setPreviewError(null);
   }, [analysis]);
 
-  function setAssignment(ref: number, slot: string | null) {
-    setAssignments((prev) => {
-      const next = { ...prev };
-      if (slot) {
-        // One element per slot: clear this slot from any other element.
-        for (const k of Object.keys(next)) {
-          if (next[Number(k)] === slot) next[Number(k)] = null;
-        }
-      }
-      next[ref] = slot;
-      return next;
+  // Highlight the element a row maps to, in pixel space (transform/viewBox proof).
+  function hoverElement(ref: number | null) {
+    if (ref == null || !baseRef.current || !containerRef.current) {
+      setBox(null);
+      return;
+    }
+    const svgEl = baseRef.current.querySelector("svg");
+    if (!svgEl) return setBox(null);
+    const el = liveCandidates(svgEl)[ref] as SVGGraphicsElement | undefined;
+    if (!el) return setBox(null);
+    const er = el.getBoundingClientRect();
+    if (er.width === 0 && er.height === 0) return setBox(null);
+    const cr = containerRef.current.getBoundingClientRect();
+    // Absolute children sit inside the container's border, so subtract it
+    // (clientLeft/Top) or the box lands ~1px off. Pad so it sits just outside.
+    const pad = 4;
+    const bl = containerRef.current.clientLeft;
+    const bt = containerRef.current.clientTop;
+    setBox({
+      left: er.left - cr.left - bl - pad,
+      top: er.top - cr.top - bt - pad,
+      width: er.width + pad * 2,
+      height: er.height + pad * 2,
     });
+  }
+
+  async function renderPartial(taggedSvg: string) {
+    setPreviewLoading(true);
+    setPreviewError(null);
+    setBox(null);
+    try {
+      const res = await fetch(
+        `${BACKEND_URL}/api/immersive/render?mode=${encodeURIComponent(mode)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "image/svg+xml" },
+          credentials: "include",
+          body: taggedSvg,
+        },
+      );
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        setPreviewError(data.error ?? `Preview failed (${res.status}).`);
+        return;
+      }
+      setFilled(focusSvgToContent(await res.text()));
+    } catch {
+      setPreviewError("Couldn't reach the backend for the preview.");
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
+  function setAssignment(ref: number, slot: string | null) {
+    const next = { ...assignments };
+    if (slot) {
+      // One element per slot: clear this slot from any other element.
+      for (const k of Object.keys(next)) {
+        if (next[Number(k)] === slot) next[Number(k)] = null;
+      }
+    }
+    next[ref] = slot;
+    setAssignments(next);
+    // Live partial preview inside the editor: fill with the tags so far. With
+    // nothing tagged there's nothing to fill, so fall back to the plain view.
+    if (Object.values(next).some(Boolean)) {
+      void renderPartial(applyTags(svg, mode, next));
+    } else {
+      setFilled(null);
+    }
   }
 
   const covered = new Set(Object.values(assignments).filter(Boolean) as string[]);
@@ -73,6 +171,35 @@ export default function SvgTagEditor({
         >
           Close
         </button>
+      </div>
+
+      {/* Preview: starts plain (no data), fills live as you assign tags.
+          Hovering a row below outlines the element it maps to. */}
+      <div>
+        <p className="text-xs uppercase tracking-wider text-on-surface-variant">
+          Preview {filled ? "(tags so far)" : "(plain)"} — hover a row to locate it
+          {previewLoading ? " · rendering…" : ""}
+        </p>
+        <div
+          ref={containerRef}
+          className="relative mt-2 flex h-64 items-center justify-center overflow-hidden rounded border border-outline-variant bg-surface-container-lowest"
+        >
+          <div
+            ref={baseRef}
+            aria-hidden
+            className="h-full w-full [&>svg]:h-full [&>svg]:w-full"
+            dangerouslySetInnerHTML={{ __html: displaySvg }}
+          />
+          {box && (
+            <div
+              className="pointer-events-none absolute rounded-sm bg-green-500/30"
+              style={{ left: box.left, top: box.top, width: box.width, height: box.height }}
+            />
+          )}
+        </div>
+        {previewError && (
+          <p className="mt-1 text-xs text-error">{previewError}</p>
+        )}
       </div>
 
       {/* Only surface the mandatory tags that are still missing (needed for the
@@ -125,7 +252,11 @@ export default function SvgTagEditor({
             return (
               <div
                 key={c.ref}
-                className="flex items-center justify-between gap-2 rounded border border-outline-variant px-2 py-1.5 text-sm"
+                onMouseEnter={() => hoverElement(c.ref)}
+                onMouseLeave={() => hoverElement(null)}
+                onFocus={() => hoverElement(c.ref)}
+                onBlur={() => hoverElement(null)}
+                className="flex items-center justify-between gap-2 rounded border border-outline-variant px-2 py-1.5 text-sm hover:border-primary"
               >
                 <span className="flex min-w-0 items-center gap-2">
                   <span className="shrink-0 text-on-surface-variant">
@@ -162,14 +293,21 @@ export default function SvgTagEditor({
         </div>
       </div>
 
-      {/* Read-only source (no free editing — prevents injection). */}
+      {/* Read-only source (no free editing — prevents injection). Collapsed by
+          default; most users only need the rows above. */}
       <div>
-        <p className="text-xs uppercase tracking-wider text-on-surface-variant">
-          SVG source (read-only)
-        </p>
-        <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-all rounded border border-outline-variant bg-surface-container-lowest p-2 text-[11px] leading-relaxed text-on-surface-variant">
-          {svg}
-        </pre>
+        <button
+          type="button"
+          onClick={() => setShowSource((s) => !s)}
+          className="text-xs uppercase tracking-wider text-on-surface-variant hover:text-on-surface"
+        >
+          {showSource ? "▾" : "▸"} SVG source (read-only)
+        </button>
+        {showSource && (
+          <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-all rounded border border-outline-variant bg-surface-container-lowest p-2 text-[11px] leading-relaxed text-on-surface-variant">
+            {svg}
+          </pre>
+        )}
       </div>
 
       <div className="flex justify-end gap-2">
