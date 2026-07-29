@@ -7,14 +7,18 @@ export default function Modal({
   onClose,
   title,
   size = "default",
+  headerExtra,
   children,
 }: {
   open: boolean;
   onClose: () => void;
   title?: string;
   /** "wide" gives tools with side-by-side panes more room; "small" suits
-   *  compact dialogs like the Last.fm connect form. */
-  size?: "small" | "default" | "wide";
+   *  compact dialogs like the Last.fm connect form; "medium" fits a
+   *  text-heavy dialog without going full width. */
+  size?: "small" | "medium" | "default" | "wide";
+  /** Optional element shown next to the title (e.g. an info "i" button). */
+  headerExtra?: ReactNode;
   children: ReactNode;
 }) {
   useEffect(() => {
@@ -55,11 +59,16 @@ export default function Modal({
             ? "max-w-[104rem]"
             : size === "small"
               ? "max-w-md"
-              : "max-w-5xl"
+              : size === "medium"
+                ? "max-w-3xl"
+                : "max-w-5xl"
         } flex-col overflow-hidden border border-outline bg-surface-container-lowest`}
       >
         <div className="flex items-center justify-between border-b border-outline-variant px-6 py-4">
-          <h2 className="type-label-bold uppercase text-on-surface">{title}</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="type-label-bold uppercase text-on-surface">{title}</h2>
+            {headerExtra}
+          </div>
           <button
             type="button"
             onClick={onClose}

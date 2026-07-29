@@ -57,13 +57,17 @@ const MODE_LABEL: Record<string, string> = {
   queue: "Queue",
 };
 
+// The public, read-only demo folder (formerly the internal "_debug"). Always
+// pinned first at the root; templates in it can be loaded/copied but not edited.
+const DEMO_FOLDER = "Demo Templates";
+
 function folderName(path: string): string {
   const i = path.lastIndexOf("/");
   return i === -1 ? path : path.slice(i + 1);
 }
 
-// Alphabetical, case-insensitive, with symbols/punctuation before letters/digits
-// (so "_debug" sorts before "New folder").
+// Alphabetical, case-insensitive, with symbols/punctuation before letters/digits.
+// (The demo folder is pinned first separately, in childFolders.)
 function compareNames(a: string, b: string): number {
   const al = a.toLowerCase();
   const bl = b.toLowerCase();
@@ -128,7 +132,7 @@ export default function TemplateLibrary({
 }) {
   const [debug, setDebug] = useState<DebugTemplate[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [open, setOpen] = useState<Record<string, boolean>>({}); // _debug collapsed
+  const [open, setOpen] = useState<Record<string, boolean>>({}); // demo folder collapsed
   const [clipboard, setClipboard] = useState<Clipboard | null>(null);
   const [selected, setSelected] = useState<{
     type: "folder" | "template";
@@ -163,7 +167,7 @@ export default function TemplateLibrary({
     };
   }, [menu]);
 
-  const allFolders = useMemo(() => ["_debug", ...userFolders], [userFolders]);
+  const allFolders = useMemo(() => [DEMO_FOLDER, ...userFolders], [userFolders]);
 
   function openAncestors(folder: string) {
     if (!folder) return;
@@ -209,12 +213,17 @@ export default function TemplateLibrary({
         const par = i === -1 ? null : p.slice(0, i);
         return par === parent;
       })
-      .sort((a, b) => compareNames(folderName(a), folderName(b)));
+      .sort((a, b) => {
+        // The demo folder is always pinned first at the root.
+        if (a === DEMO_FOLDER) return -1;
+        if (b === DEMO_FOLDER) return 1;
+        return compareNames(folderName(a), folderName(b));
+      });
   }
 
   function templatesIn(folder: string): LibTemplate[] {
     const list =
-      folder === "_debug"
+      folder === DEMO_FOLDER
         ? debug.map((d) => ({
             key: d.id,
             name: d.name,
@@ -327,7 +336,7 @@ export default function TemplateLibrary({
   }
 
   function onTemplateDragStart(e: DragEvent<HTMLDivElement>, t: LibTemplate) {
-    // Read-only (_debug) templates carry only a backendId (load/copy, no move);
+    // Read-only (demo) templates carry only a backendId (load/copy, no move);
     // user templates carry their svg + source id so they can be moved.
     const payload: ImdDragPayload = t.readOnly
       ? { name: t.name, modes: t.modes, backendId: t.backendId }
@@ -356,7 +365,7 @@ export default function TemplateLibrary({
   function onFolderDrop(e: DragEvent<HTMLElement>, folder: string) {
     e.preventDefault();
     e.stopPropagation();
-    if (folder === "_debug") return; // read-only
+    if (folder === DEMO_FOLDER) return; // read-only
     const raw = e.dataTransfer.getData(IMD_DND_MIME);
     if (!raw) return;
     let p: ImdDragPayload;
@@ -385,7 +394,7 @@ export default function TemplateLibrary({
   }
 
   function allowDrop(e: DragEvent<HTMLElement>, folder: string) {
-    if (folder === "_debug") return;
+    if (folder === DEMO_FOLDER) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "copy";
   }
@@ -421,7 +430,7 @@ export default function TemplateLibrary({
 
     if (m.kind === "folder") {
       const path = m.key!;
-      if (path === "_debug") {
+      if (path === DEMO_FOLDER) {
         return [
           { label: "New folder", action: () => onNewFolder(null) },
           { label: "Copy", action: () => void copyFolder(path) },
@@ -491,7 +500,7 @@ export default function TemplateLibrary({
             />
           ) : (
             <>
-              <span className="truncate text-on-surface">📄 {t.name}</span>
+              <span className="truncate text-on-surface" title={t.name}>📄 {t.name}</span>
               <span className="flex shrink-0 gap-1">
                 {t.modes.map((m) => (
                   <span
@@ -524,7 +533,7 @@ export default function TemplateLibrary({
       <div key={path}>
         <div
           data-cy="folder"
-          draggable={path !== "_debug" && !isRenaming}
+          draggable={path !== DEMO_FOLDER && !isRenaming}
           onDragStart={(e) => onFolderDragStart(e, path)}
           onClick={(e) => {
             e.stopPropagation();
@@ -561,7 +570,7 @@ export default function TemplateLibrary({
               className="w-full rounded border border-outline bg-surface-container-lowest px-1 text-xs text-on-surface"
             />
           ) : (
-            <span className="truncate text-on-surface">📁 {folderName(path)}</span>
+            <span className="truncate text-on-surface" title={folderName(path)}>📁 {folderName(path)}</span>
           )}
         </div>
         {isOpen && hasContent && (
@@ -575,7 +584,7 @@ export default function TemplateLibrary({
   }
 
   return (
-    <aside className="flex w-60 shrink-0 flex-col border-r border-outline-variant pr-3">
+    <aside className="flex w-[22rem] shrink-0 flex-col border-r border-outline-variant pr-3">
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
           Library
@@ -585,7 +594,7 @@ export default function TemplateLibrary({
           data-cy="new-folder-btn"
           onClick={() =>
             onNewFolder(
-              selected?.type === "folder" && selected.key !== "_debug"
+              selected?.type === "folder" && selected.key !== DEMO_FOLDER
                 ? selected.key
                 : null,
             )

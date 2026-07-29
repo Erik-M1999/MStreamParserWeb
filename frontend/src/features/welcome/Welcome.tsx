@@ -4,7 +4,7 @@
 // cards below this content).
 
 const USES = [
-  "Generate textures for your renders involving music displays",
+  "Generate textures for your renders or games involving music displays",
   "External API access to fetch textures upon pressing render",
   "Archiving or sharing a playlist as plain text",
 ];
@@ -15,8 +15,8 @@ const STEPS: { title: string; body: string }[] = [
     body: "Register and log in. Your templates and API keys are saved to your account.",
   },
   {
-    title: "Connect API of your choice. Be it Spotify or Last.fm.",
-    body: "Pick an API in the left panel. This grants read access to your playback and playlists.",
+    title: "Connect API of your choice.",
+    body: "Be it Spotify or Last.fm. This grants read access to your playback and library.",
   },
   {
     title: "Pick a tool",
@@ -78,15 +78,19 @@ export default function Welcome() {
               <h3 className="type-headline-md text-on-surface">SVG Texture Labs</h3>
               <p className="mt-3 type-body-lg text-on-surface-variant">
                 Upload an SVG template with tagged text layers and it fills them with
-                the song you&apos;re currently playing — or a playlist, or your queue.
-                Keep templates in a library and export the result as SVG or PNG.
+                the song you&apos;re currently playing, a playlist or your queue.
+                <br />
+                Save your templates in a library and manage them there.
+                <br />
+                Fully supports a full folder management suite.
+                <br />
+                Export the result as SVG or PNG with a resolution of your choice, or fetch it directly from your software via the API.
               </p>
             </div>
             <div>
               <h3 className="type-headline-md text-on-surface">Playlist Extractor</h3>
               <p className="mt-3 type-body-lg text-on-surface-variant">
-                Turn any Spotify playlist — one of yours or a public link — into a
-                plain .txt list, numbered in the playlist&apos;s own order:
+                Turn any Spotify playlist into a plain text list, numbered in the playlist&apos;s own order:
                 <code className="ml-1 text-on-surface">1: Artist - Song Name</code>.
               </p>
             </div>

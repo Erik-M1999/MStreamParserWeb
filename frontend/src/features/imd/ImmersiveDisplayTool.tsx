@@ -50,7 +50,7 @@ export default function ImmersiveDisplayTool({
     setTemplates(t);
   }, []);
 
-  // Load the user's library once logged in (anon only ever sees _debug).
+  // Load the user's library once logged in (anon only ever sees the demo folder).
   useEffect(() => {
     if (!loggedIn) {
       setFolders([]);

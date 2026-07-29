@@ -1,5 +1,5 @@
 // E2E: the critical Library path — a logged-in user builds a nested folder tree,
-// copies a _debug template into it, renames it, and the whole tree survives a
+// copies a Demo Templates template into it, renames it, and the whole tree survives a
 // page reload (proving it's persisted in the DB, not just client state).
 // Needs the full stack running (backend :3000 + frontend :5173).
 
@@ -38,12 +38,12 @@ describe("template library tree", () => {
     cy.get('[data-cy="rename-input"]').clear().type(`${folderB}{enter}`);
     cy.contains('[data-cy="folder"]', folderB).should("be.visible");
 
-    // Copy a read-only _debug template, then collapse _debug again so the only
+    // Copy a read-only Demo Templates template, then collapse Demo Templates again so the only
     // template left on screen is the one we paste.
-    cy.contains('[data-cy="folder"]', "_debug").click(); // expand
+    cy.contains('[data-cy="folder"]', "Demo Templates").click(); // expand
     cy.get('[data-cy="template"]').first().rightclick();
     cy.get('[data-cy="context-menu"]').contains("Copy").click();
-    cy.contains('[data-cy="folder"]', "_debug").click(); // collapse
+    cy.contains('[data-cy="folder"]', "Demo Templates").click(); // collapse
 
     // Paste into B. Renaming B earlier collapsed it (open-state is keyed by
     // path), so expand B to reveal the pasted template.

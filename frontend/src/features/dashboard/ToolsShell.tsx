@@ -37,6 +37,7 @@ export default function ToolsShell({
   children: ReactNode;
 }) {
   const [openToolId, setOpenToolId] = useState<string | null>(null);
+  const [infoOpen, setInfoOpen] = useState(false);
   const isAvailable = (t: Tool) => t.status === "available";
   const orderedTools = [...tools].sort(byPriority);
 
@@ -87,12 +88,87 @@ export default function ToolsShell({
         open={openToolId === "immersive-display"}
         onClose={() => setOpenToolId(null)}
         title="SVG Texture Labs"
+        size="default"
+        headerExtra={
+          <button
+            type="button"
+            onClick={() => setInfoOpen(true)}
+            aria-label="How SVG Texture Labs works"
+            title="How it works"
+            className="flex h-6 w-6 items-center justify-center rounded-full border border-outline-variant text-sm italic text-on-surface-variant transition-colors hover:border-primary hover:text-primary"
+          >
+            i
+          </button>
+        }
       >
         <ImmersiveDisplayTool
           spotifyConnected={spotifyConnected}
           lastfmConnected={lastfmConnected}
           loggedIn={loggedIn}
         />
+      </Modal>
+
+      {/* How-it-works dialog for SVG Texture Labs (opened from the "i" button). */}
+      <Modal
+        open={infoOpen}
+        onClose={() => setInfoOpen(false)}
+        title="How SVG Texture Labs works"
+        size="small"
+      >
+        <div className="space-y-4 type-body-md text-on-surface-variant">
+          <p>
+            SVG Texture Labs fills a vector template with whatever you&apos;re
+            listening to or your recent in case live is off, so you can drop live track art straight into your
+            renders, streams or games.
+          </p>
+          <ol className="list-decimal space-y-2 pl-5 marker:text-on-surface-variant">
+            <li>
+              <span className="text-on-surface">Connect an API of your choice</span>
+            </li>
+            <li>
+              <span className="text-on-surface">Pick a mode:</span> Current
+              Song, Playlist or Queue. What's available depends on the API.
+            </li>
+            <li>
+              <span className="text-on-surface">Choose a template:</span> load
+              one from the <span className="text-on-surface">Demo Templates</span>{" "}
+              folder to try it out, or drop in your own SVG. Templates mark the
+              layers to fill by tagging them (a text layer id like{" "}
+              <code className="text-on-surface">title</code> or{" "}
+              <code className="text-on-surface">artist</code>, and a rectangle
+              tagged <code className="text-on-surface">cover</code>).
+            </li>
+            <li>
+              <span className="text-on-surface">Detected invalid template?:</span> You
+              might be able to recover with {" "}
+              <code className="text-on-surface">Edit tags</code> tool. It allows you to reassign tags
+              to your SVG elements.
+            </li>
+            <li>
+              <span className="text-on-surface">Preview:</span> it fills
+              automatically with your current data. 
+              <br />
+              If the tool detects long names, you'll be able to
+              randomize it with {" "}
+              <code className="text-on-surface">Handle long text</code> option. 
+              (Only applies to Current Song mode)
+            </li>
+            <li>
+              <span className="text-on-surface">Export:</span> download as SVG
+              or PNG at the resolution you choose or fetch the rendered image
+              from your own software with an API key (see Account → API keys).
+            </li>
+            <li>
+              <span className="text-on-surface">Optionally save your template:</span> Drag and Drop your imported File
+              into the Library and give it a name. Saved templates and shows in external APIs for the softwares
+              to choose and fetch a generated texture from. The tool automtically detects the suitable mode and assign a tag.
+              <br />
+              Manage your library by copying, moving, deleting or renaming templates and folders.
+              <br />
+              Features a right-click menu.
+            </li>
+          </ol>
+        </div>
       </Modal>
 
       <Modal

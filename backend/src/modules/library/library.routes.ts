@@ -8,7 +8,7 @@ import * as library from "./library.service.js";
 
 // ---------------------------------------------------------------------------
 // Library context routes (one cohesive router):
-//   - GET /sample-templates[/:id]  → public read-only demo set (_debug)
+//   - GET /sample-templates[/:id]  → public read-only demo set (Demo Templates)
 //   - /templates  + /folders       → per-user CRUD (authenticated)
 // All per-user logic lives in library.service.ts; handlers stay thin.
 // ---------------------------------------------------------------------------
@@ -23,13 +23,15 @@ const body = (req: Request) => (req.body ?? {}) as Record<string, unknown>;
 // --- Public demo templates (read-only, served from disk) -------------------
 // dist/modules/library/library.routes.js -> ../../../sample-templates
 const TEMPLATES_DIR = path.join(__dirname, "..", "..", "..", "sample-templates");
-const DEBUG_FOLDER = "_debug";
+const DEMO_FOLDER = "Demo Templates";
 
 type Mode = "current-song" | "playlist" | "queue";
 
 function modesForName(name: string): Mode[] {
-  const n = name.toLowerCase();
-  if (n.includes("currentsong") || n.includes("current_song")) return ["current-song"];
+  // Normalize away spaces/underscores so "Current Song", "current_song" and
+  // "CurrentSong" all match.
+  const n = name.toLowerCase().replace(/[\s_]+/g, "");
+  if (n.includes("currentsong")) return ["current-song"];
   if (n.includes("playlist")) return ["playlist"];
   if (n.includes("queue")) return ["queue"];
   return [];
@@ -48,7 +50,7 @@ router.get("/sample-templates", (_req: Request, res: Response) => {
     listSvgFiles().map((file) => ({
       id: file,
       name: file.replace(/\.svg$/i, ""),
-      folder: DEBUG_FOLDER,
+      folder: DEMO_FOLDER,
       modes: modesForName(file),
       readOnly: true,
     })),
