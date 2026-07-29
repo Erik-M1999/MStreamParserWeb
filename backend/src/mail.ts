@@ -18,7 +18,7 @@ import { WelcomeEmail } from "./emails/WelcomeEmail.js";
 // ---------------------------------------------------------------------------
 
 const API_KEY = process.env.RESEND_API_KEY ?? "";
-const FROM = process.env.MAIL_FROM ?? "MStreamParserWeb <onboarding@resend.dev>";
+const FROM = process.env.MAIL_FROM ?? "Music Streaming Tools <noreply@m1999-tools.de>";
 const APP_URL = process.env.FRONTEND_ORIGIN ?? "http://127.0.0.1:5173";
 
 const resend = API_KEY ? new Resend(API_KEY) : null;
