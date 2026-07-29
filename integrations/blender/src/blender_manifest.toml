@@ -1,0 +1,22 @@
+schema_version = "1.0.0"
+
+id = "mstreamparser_music_display"
+version = "1.0.0"
+name = "Music Streaming Tools"
+tagline = "Apply your currently playing music as a texture"
+maintainer = "Erik-M1999 <erik@m1999.de>"
+type = "add-on"
+
+website = "https://m1999-tools.de"
+tags = ["Material", "Render", "Import-Export"]
+
+blender_version_min = "4.2.0"
+
+# Matches the repository's LICENSE (Apache-2.0). Note: publishing on
+# extensions.blender.org requires a GPL-compatible license — this add-on is
+# installed from disk, so that restriction does not apply here.
+license = ["SPDX:Apache-2.0"]
+
+[permissions]
+network = "Fetch the rendered template from Music Streaming Tools server, either externally or locally."
+files = "Overwrite the image file the chosen texture points at."
