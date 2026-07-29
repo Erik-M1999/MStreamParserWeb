@@ -28,9 +28,18 @@ function extractPlaylistId(input: string): string | null {
   return null;
 }
 
-// One line per track: "ID: Artist - Song Name" (ID = place in playlist order).
+// A metadata header, an empty row, then one line per track:
+// "ID: Artist - Song Name" (ID = place in playlist order).
 function toTxt(p: PlaylistExport): string {
-  return p.tracks.map((t) => `${t.position}: ${t.artist} - ${t.title}`).join("\r\n");
+  const header = [
+    `Playlist Name: ${p.name}`,
+    `Playlist Creator: ${p.owner || "Unknown"}`,
+    `Platform: Spotify`,
+    `Playlist Link: ${p.url ?? "(unavailable)"}${p.isPublic === false ? " (private)" : ""}`,
+    "", // empty row before the track list
+  ];
+  const body = p.tracks.map((t) => `${t.position}: ${t.artist} - ${t.title}`);
+  return [...header, ...body].join("\r\n");
 }
 
 function sanitizeFilename(name: string): string {

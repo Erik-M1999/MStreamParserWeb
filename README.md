@@ -7,9 +7,6 @@ Includes web based integration of ImmersiveMusicDisplay (https://github.com/Erik
 
 **Improvements\*:**
 
-**Interface:**
-- Library throws Error when User has no Folder or File saved yet
-
 **External API:**
 - Make 3Ds Max Pre-Render Script communicate with .ini that's set by the UI
 - E-Mail Notification when a new API Token has been set
@@ -28,8 +25,6 @@ Includes web based integration of ImmersiveMusicDisplay (https://github.com/Erik
 - [X] Add parser to convert playlists into plain .txt or .csv files.
 - [X] Implement a welcome page (Potentially add gifs and pictures)
 - [X] Trial a different API: last.fm.
-
--> When repo has reached a working state with all mandatory function implemented, add other APIs.
 
 ####
 

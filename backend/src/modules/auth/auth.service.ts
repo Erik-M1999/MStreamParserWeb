@@ -99,3 +99,17 @@ export async function login(
   const token = jwt.sign(payload, JWT_SECRET, { expiresIn: TOKEN_TTL_SECONDS });
   return { token, user: { id: user.id, username: user.username, email: user.email } };
 }
+
+/** Permanently deletes the account after re-confirming the password. Cascades
+ *  to the user's folders, templates, connections and API keys (Prisma
+ *  onDelete: Cascade). */
+export async function deleteAccount(userId: number, password: unknown): Promise<void> {
+  if (typeof password !== "string" || !password) {
+    throw new HttpError(400, "Password is required.");
+  }
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+    throw new HttpError(401, "Password is incorrect.");
+  }
+  await prisma.user.delete({ where: { id: userId } });
+}

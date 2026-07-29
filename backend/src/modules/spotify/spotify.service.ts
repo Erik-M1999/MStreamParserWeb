@@ -450,6 +450,11 @@ export interface PlaylistExport {
   name: string;
   owner: string;
   coverUrl: string | null;
+  /** open.spotify.com link (present even for private playlists — it just won't
+   *  open for people without access). null if Spotify omits it. */
+  url: string | null;
+  /** true/false, or null when Spotify doesn't report it (e.g. some private ones). */
+  isPublic: boolean | null;
   tracks: ExportedTrack[];
 }
 
@@ -464,7 +469,7 @@ export async function getPlaylistExport(
 
   // Metadata (name/owner) for the filename + header.
   const metaRes = await fetch(
-    `${SPOTIFY_API_BASE}/playlists/${playlistId}?fields=id,name,owner(display_name),images`,
+    `${SPOTIFY_API_BASE}/playlists/${playlistId}?fields=id,name,owner(display_name),images,external_urls,public`,
     { headers: auth },
   );
   if (metaRes.status === 404) throw new Error("playlist_not_found");
@@ -478,6 +483,8 @@ export async function getPlaylistExport(
     name?: string;
     owner?: { display_name?: string };
     images?: { url: string }[];
+    external_urls?: { spotify?: string };
+    public?: boolean | null;
   };
 
   // Tracks, paginated (100/page), preserving the playlist's custom order.
@@ -519,6 +526,8 @@ export async function getPlaylistExport(
     name: meta.name ?? "Playlist",
     owner: meta.owner?.display_name ?? "",
     coverUrl: meta.images?.[0]?.url ?? null,
+    url: meta.external_urls?.spotify ?? null,
+    isPublic: meta.public ?? null,
     tracks,
   };
 }

@@ -3,7 +3,7 @@ import bcrypt from "bcrypt";
 
 vi.mock("../src/db", () => ({
   prisma: {
-    user: { findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn() },
+    user: { findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), delete: vi.fn() },
   },
 }));
 // Fire-and-forget welcome email — stub so register never touches Resend.
@@ -15,9 +15,14 @@ vi.mock("../src/mail", () => ({
 
 import { prisma } from "../src/db";
 import { sendWelcomeEmail } from "../src/mail";
-import { register, login } from "../src/modules/auth/auth.service";
+import { register, login, deleteAccount } from "../src/modules/auth/auth.service";
 
-const user = prisma.user as unknown as { findFirst: Mock; findUnique: Mock; create: Mock };
+const user = prisma.user as unknown as {
+  findFirst: Mock;
+  findUnique: Mock;
+  create: Mock;
+  delete: Mock;
+};
 const mailMock = sendWelcomeEmail as unknown as Mock;
 
 const validBody = { email: "New@Example.com ", username: " erik ", password: "password123" };
@@ -159,5 +164,30 @@ describe("auth.service login", () => {
     const ratio =
       Math.max(unknownUserMs, wrongPasswordMs) / Math.min(unknownUserMs, wrongPasswordMs);
     expect(ratio).toBeLessThan(3);
+  });
+});
+
+describe("auth.service deleteAccount", () => {
+  it("rejects a missing password (400) and never deletes", async () => {
+    await expect(deleteAccount(1, "")).rejects.toMatchObject({ status: 400 });
+    await expect(deleteAccount(1, undefined)).rejects.toMatchObject({ status: 400 });
+    expect(user.delete).not.toHaveBeenCalled();
+  });
+
+  it("rejects a wrong password or unknown user with 401 (no delete)", async () => {
+    user.findUnique.mockResolvedValueOnce({ id: 1, passwordHash: await bcrypt.hash("right", 4) });
+    await expect(deleteAccount(1, "wrong")).rejects.toMatchObject({ status: 401 });
+
+    user.findUnique.mockResolvedValueOnce(null);
+    await expect(deleteAccount(1, "whatever")).rejects.toMatchObject({ status: 401 });
+
+    expect(user.delete).not.toHaveBeenCalled();
+  });
+
+  it("deletes the account (cascades in the DB) on the correct password", async () => {
+    user.findUnique.mockResolvedValueOnce({ id: 9, passwordHash: await bcrypt.hash("password123", 4) });
+    user.delete.mockResolvedValueOnce({});
+    await expect(deleteAccount(9, "password123")).resolves.toBeUndefined();
+    expect(user.delete).toHaveBeenCalledWith({ where: { id: 9 } });
   });
 });

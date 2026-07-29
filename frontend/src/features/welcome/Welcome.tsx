@@ -32,12 +32,8 @@ export default function Welcome() {
   return (
     <>
       {/* ---------------------------------------------------------------- Hero */}
-      <section className="relative flex min-h-[78vh] items-center overflow-hidden border-b border-outline-variant">
-        {/*
-          PLACEHOLDER BACKGROUND — swap this block for the product render, e.g.
-          <img src="/hero.png" alt="" className="absolute inset-0 h-full w-full object-cover" />
-          The scrim below keeps the copy readable over any image.
-        */}
+      <section className="relative flex min-h-[60vh] items-center overflow-hidden border-b border-outline-variant">
+        {/* Subtle diagonal texture — this is a purely technical tool, no imagery. */}
         <div
           aria-hidden
           className="absolute inset-0"
@@ -46,17 +42,13 @@ export default function Welcome() {
             backgroundImage:
               "repeating-linear-gradient(45deg, rgba(255,255,255,0.045) 0 1px, transparent 1px 16px)",
           }}
-        >
-          <span className="absolute bottom-3 right-4 type-label-sm text-on-surface-variant">
-            Render placeholder
-          </span>
-        </div>
+        />
         <div
           aria-hidden
           className="absolute inset-0 bg-gradient-to-b from-surface/85 via-surface/70 to-surface"
         />
 
-        <div className="relative mx-auto w-full max-w-3xl px-8 py-28 text-center">
+        <div className="relative mx-auto w-full max-w-3xl px-8 py-20 text-center">
           <p className="type-label-sm text-primary">Music Streaming Tools</p>
           <h1 className="mt-5 type-display-lg text-on-surface">
             Turn what you&apos;re playing into something you can use.

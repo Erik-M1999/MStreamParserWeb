@@ -20,6 +20,9 @@ export interface PlaylistExport {
   name: string;
   owner: string;
   coverUrl: string | null;
+  /** open.spotify.com link (present even for private playlists). */
+  url: string | null;
+  isPublic: boolean | null;
   tracks: ExportedTrack[];
 }
 

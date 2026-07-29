@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { BACKEND_URL } from "@/shared/config";
 import { authFetch, authJson } from "@/shared/lib/authFetch";
 import Modal from "@/shared/components/Modal";
@@ -20,13 +19,15 @@ export default function ApiPanel({
   loggedIn,
   spotifyProfile,
   lastfmProfile,
+  onChanged,
 }: {
   connections: ApiConnection[];
   loggedIn: boolean;
   spotifyProfile?: SpotifyProfile | null;
   lastfmProfile?: LastfmProfile | null;
+  /** Re-fetch connection status after a connect/disconnect. */
+  onChanged?: () => void;
 }) {
-  const router = useRouter();
   const [lfmOpen, setLfmOpen] = useState(false);
   const [lfmInput, setLfmInput] = useState("");
   const [lfmBusy, setLfmBusy] = useState(false);
@@ -63,7 +64,7 @@ export default function ApiPanel({
       });
       setLfmOpen(false);
       setLfmInput("");
-      router.refresh();
+      onChanged?.();
     } catch (e) {
       setLfmError(e instanceof Error ? e.message : "Could not connect Last.fm.");
     } finally {
@@ -74,7 +75,7 @@ export default function ApiPanel({
   async function disconnect(id: string, name: string) {
     if (!window.confirm(`Disconnect ${name}?`)) return;
     await authFetch(`/api/${id}/disconnect`, { method: "POST" });
-    router.refresh();
+    onChanged?.();
   }
 
   return (

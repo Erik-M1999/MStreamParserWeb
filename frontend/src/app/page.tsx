@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Sidebar from "@/features/dashboard/Sidebar";
 import ToolsShell from "@/features/dashboard/ToolsShell";
 import Welcome from "@/features/welcome/Welcome";
@@ -24,9 +24,9 @@ export default function HomePage() {
   const [spotifyProfile, setSpotifyProfile] = useState<SpotifyProfile | null>(null);
   const [lastfmProfile, setLastfmProfile] = useState<LastfmProfile | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-
+  // Reusable so a connect/disconnect in the sidebar can refresh the status
+  // (router.refresh() does nothing here — this is client-fetched, not SSR).
+  const load = useCallback(async () => {
     async function getJson<T>(path: string): Promise<T | null> {
       try {
         const res = await authFetch(path);
@@ -36,37 +36,33 @@ export default function HomePage() {
       }
     }
 
-    (async () => {
-      const [toolsData, connData, meOk] = await Promise.all([
-        getJson<Tool[]>("/api/tools"),
-        getJson<ApiConnection[]>("/api/connections"),
-        authFetch("/api/auth/me")
-          .then((r) => r.ok)
-          .catch(() => false),
-      ]);
-      if (cancelled) return;
+    const [toolsData, connData, meOk] = await Promise.all([
+      getJson<Tool[]>("/api/tools"),
+      getJson<ApiConnection[]>("/api/connections"),
+      authFetch("/api/auth/me")
+        .then((r) => r.ok)
+        .catch(() => false),
+    ]);
 
-      const conns = connData ?? [];
-      setTools(toolsData ?? []);
-      setConnections(conns);
-      setLoggedIn(meOk);
+    const conns = connData ?? [];
+    setTools(toolsData ?? []);
+    setConnections(conns);
+    setLoggedIn(meOk);
 
-      const spotifyConnected = conns.some((c) => c.id === "spotify" && c.connected);
-      const lastfmConnected = conns.some((c) => c.id === "lastfm" && c.connected);
+    const spotifyConnected = conns.some((c) => c.id === "spotify" && c.connected);
+    const lastfmConnected = conns.some((c) => c.id === "lastfm" && c.connected);
 
-      const [spotify, lastfm] = await Promise.all([
-        spotifyConnected ? getJson<SpotifyProfile>("/api/spotify/me") : Promise.resolve(null),
-        lastfmConnected ? getJson<LastfmProfile>("/api/lastfm/me") : Promise.resolve(null),
-      ]);
-      if (cancelled) return;
-      setSpotifyProfile(spotify);
-      setLastfmProfile(lastfm);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
+    const [spotify, lastfm] = await Promise.all([
+      spotifyConnected ? getJson<SpotifyProfile>("/api/spotify/me") : Promise.resolve(null),
+      lastfmConnected ? getJson<LastfmProfile>("/api/lastfm/me") : Promise.resolve(null),
+    ]);
+    setSpotifyProfile(spotify);
+    setLastfmProfile(lastfm);
   }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const spotifyConnected = connections.some((c) => c.id === "spotify" && c.connected);
   const lastfmConnected = connections.some((c) => c.id === "lastfm" && c.connected);
@@ -78,6 +74,7 @@ export default function HomePage() {
         loggedIn={loggedIn}
         spotifyProfile={spotifyProfile}
         lastfmProfile={lastfmProfile}
+        onConnectionsChanged={load}
       />
       <ToolsShell
         tools={tools}

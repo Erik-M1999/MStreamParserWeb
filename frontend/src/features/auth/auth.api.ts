@@ -24,3 +24,17 @@ export async function logout(): Promise<void> {
     /* ignore */
   }
 }
+
+/** Permanently deletes the account (password re-confirmation). Throws with the
+ *  server's message on failure (e.g. wrong password). */
+export async function deleteAccount(password: string): Promise<void> {
+  const res = await authFetch("/api/auth/account", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ password }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data.error ?? `Delete failed (${res.status}).`);
+  }
+}

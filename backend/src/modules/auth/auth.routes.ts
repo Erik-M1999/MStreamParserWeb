@@ -1,8 +1,13 @@
 import { Router, type Request, type Response } from "express";
-import { COOKIE_NAME, optionalUser } from "../../middleware/authenticate.js";
+import {
+  COOKIE_NAME,
+  optionalUser,
+  authenticate,
+  type AuthedRequest,
+} from "../../middleware/authenticate.js";
 import { rateLimit } from "../../shared/rateLimit.js";
 import { route } from "../../shared/route.js";
-import { register, login, TOKEN_TTL_SECONDS } from "./auth.service.js";
+import { register, login, deleteAccount, TOKEN_TTL_SECONDS } from "./auth.service.js";
 
 // Auth routes (thin). HTTP concerns only: cookie set/clear, rate limiting, and
 // reading the request. All credential logic lives in auth.service.ts.
@@ -75,5 +80,20 @@ router.get("/auth/me", (req: Request, res: Response) => {
   }
   res.json({ id: user.userId, username: user.username, email: user.email });
 });
+
+// Permanently delete the account (password re-confirmation in the body). Rate
+// limited like the other auth entry points, and clears the auth cookie after.
+router.delete(
+  "/auth/account",
+  authLimiter,
+  authenticate,
+  route(async (req, res) => {
+    const userId = (req as AuthedRequest).user!.userId;
+    const { password } = (req.body ?? {}) as Record<string, unknown>;
+    await deleteAccount(userId, password);
+    clearAuthCookie(req, res);
+    res.status(204).end();
+  }),
+);
 
 export default router;

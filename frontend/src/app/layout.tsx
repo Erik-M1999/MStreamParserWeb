@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Hanken_Grotesk } from "next/font/google";
+import DesktopOnlyGate from "@/shared/components/DesktopOnlyGate";
 import "./globals.css";
 
 // Hanken Grotesk is the DESIGN.md type family (a contemporary Akkurat proxy).
@@ -24,6 +25,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en" className={hanken.variable} suppressHydrationWarning>
       <body className="min-h-screen bg-surface font-sans text-on-surface antialiased">
         {children}
+        {/* Below md: covers the app with a "built for desktop" notice. */}
+        <DesktopOnlyGate />
       </body>
     </html>
   );

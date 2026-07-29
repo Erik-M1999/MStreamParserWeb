@@ -619,12 +619,6 @@ export default function TemplateLibrary({
         {templatesIn("").map((t) => renderTemplate(t, 0))}
       </div>
 
-      <p className="mt-3 border-t border-outline-variant pt-2 text-[10px] text-on-surface-variant">
-        {loggedIn
-          ? "Your folders and templates are saved to your account."
-          : "Log in to save your own folders and templates."}
-      </p>
-
       {menu && (
         <div
           data-cy="context-menu"
