@@ -9,9 +9,6 @@ import {
   Section,
 } from "@react-email/components";
 
-// Transactional welcome email, authored with React Email (per Session 08).
-// Text is interpolated as React children, so it's escaped automatically.
-
 interface WelcomeEmailProps {
   username: string;
   loginUrl: string;
@@ -42,12 +39,11 @@ export function WelcomeEmail({ username, loginUrl }: WelcomeEmailProps) {
       <Body style={body}>
         <Container style={container}>
           <Heading style={{ fontSize: "20px", margin: "0 0 12px" }}>
-            Welcome to MStreamParserWeb, {username}!
+            Welcome to Music Streaming Tools, {username}!
           </Heading>
           <Text style={{ fontSize: "14px", lineHeight: "1.6", color: "#a3a3a3" }}>
-            Your account is ready. Connect Spotify and turn the song you&apos;re
-            playing into ready-to-use SVG/PNG templates with the Immersive Music
-            Display tool.
+            Your account is ready. Connect any API of your choice and turn the song you&apos;re
+            playing into textures with the SVG Texture Labs or export your playlists as text files.
           </Text>
           <Section style={{ margin: "24px 0" }}>
             <Button href={loginUrl} style={button}>

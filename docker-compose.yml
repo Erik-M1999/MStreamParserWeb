@@ -1,17 +1,45 @@
-# Local development database ONLY (not the app).
+# One-command start for the whole app (frontend + backend + database).
 #
-# Hetzner Webhosting runs MariaDB, so we develop against the same engine for
-# parity. Bring it up once — it then stays running in the background:
+#   cp .env.example .env      # then fill in JWT_SECRET + TOKEN_ENC_KEY (min.)
+#   docker compose up --build # → http://127.0.0.1:3000
 #
-#   docker compose up -d
+# The `app` container builds the static frontend + the Express API into one
+# Node process and applies DB migrations on start; `db` is MariaDB.
 #
-# Then point backend/.env at it (these are LOCAL dev credentials, not prod):
-#   DATABASE_URL="mysql://msp:msp_local_dev@127.0.0.1:3306/MStreamParserWeb"
-#
-# Production uses the konsoleH MySQL/MariaDB with its own DATABASE_URL, set as a
-# server env var (never committed).
+# Local dev without Docker for the app: start just the database with
+#   docker compose up -d db
+# then run the backend/frontend dev servers as usual (backend/.env points at
+# 127.0.0.1:3306). Production (Hetzner) uses its own DATABASE_URL.
 
 services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: msp-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      # In-network address of the db service (not 127.0.0.1).
+      DATABASE_URL: "mysql://msp:msp_local_dev@db:3306/MStreamParserWeb"
+      # Same origin as the app so OAuth redirect + cookies work on one port.
+      FRONTEND_ORIGIN: "http://127.0.0.1:3000"
+      SPOTIFY_REDIRECT_URI: "http://127.0.0.1:3000/api/auth/spotify/callback"
+      # Secrets + optional integrations come from the root .env (see .env.example).
+      JWT_SECRET: "${JWT_SECRET:-}"
+      TOKEN_ENC_KEY: "${TOKEN_ENC_KEY:-}"
+      SPOTIFY_CLIENT_ID: "${SPOTIFY_CLIENT_ID:-}"
+      SPOTIFY_CLIENT_SECRET: "${SPOTIFY_CLIENT_SECRET:-}"
+      LASTFM_API_KEY: "${LASTFM_API_KEY:-}"
+      RESEND_API_KEY: "${RESEND_API_KEY:-}"
+      MAIL_FROM: "${MAIL_FROM:-}"
+    ports:
+      - "3000:3000"
+
   db:
     image: mariadb:11.4
     container_name: msp-mariadb

@@ -1,0 +1,17 @@
+# Keep the build context small and free of host-built (Windows) binaries — the
+# image installs its own Linux deps. Never copy these in.
+**/node_modules
+**/dist
+**/.next
+**/out
+backend/public
+**/coverage
+**/*.log
+.git
+.gitignore
+**/.env
+**/.env.*
+!**/.env.example
+**/cypress/videos
+**/cypress/screenshots
+**/cypress/downloads
