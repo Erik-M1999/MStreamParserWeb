@@ -3,6 +3,8 @@
 Web based service to process and utilize various music streaming APIs.
 Includes web based integration of ImmersiveMusicDisplay (https://github.com/Erik-M1999/ImmersiveMusicDisplay)
 
+Public website to use: `https://m1999-tools.de`
+
 ### How to build locally
 
 Run `docker compose up` in root directory. When launching for the first time, add `--build` at the end of the command.
