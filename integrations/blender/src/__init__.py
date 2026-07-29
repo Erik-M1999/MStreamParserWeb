@@ -445,7 +445,7 @@ class MSPPreferences(AddonPreferences):
     server_url: StringProperty(
         name="Server",
         description="Base URL of your MStreamParserWeb instance",
-        default="http://127.0.0.1:3000",
+        default="https://m1999-tools.de/",
     )
     api_key: StringProperty(
         name="API key",
