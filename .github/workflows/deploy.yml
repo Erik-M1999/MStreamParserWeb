@@ -19,8 +19,14 @@ jobs:
         uses: actions/checkout@v4
 
       # Password-based SSH to konsoleH via sshpass — no marketplace action, so
-      # nothing new enters the supply chain. The remote build script is streamed
-      # to a login shell (bash -l) so the server's PATH (node/npm/npx) is set up.
+      # nothing new enters the supply chain.
+      #
+      # NB: we pass NO command. konsoleH's shared hosting blocks the SSH "exec"
+      # request (running `some-command` over SSH → "exec request failed"), but
+      # allows the plain login shell — the same one an interactive login uses.
+      # Piping the script into that shell's stdin runs it non-interactively
+      # (so `set -e` still aborts on error) as a login shell (so the profile is
+      # sourced and node/npm/npx are on PATH).
       - name: Deploy over SSH
         env:
           SSH_USER: ${{ secrets.HETZNER_SSH_USER }}
@@ -31,4 +37,4 @@ jobs:
           sudo apt-get install -y sshpass
           sshpass -p "$SSH_PASSWORD" ssh \
             -o StrictHostKeyChecking=accept-new \
-            "$SSH_USER@$SSH_HOST" 'bash -l -s' < deploy/hetzner-deploy.sh
+            "$SSH_USER@$SSH_HOST" < deploy/hetzner-deploy.sh

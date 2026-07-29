@@ -1,0 +1,6 @@
+# Keep line endings LF for files executed on Linux (the Hetzner server and CI
+# runners). Prevents Windows checkouts from committing CRLF, which would break
+# bash (e.g. `cd $DIR\r: No such file`).
+*.sh   text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
