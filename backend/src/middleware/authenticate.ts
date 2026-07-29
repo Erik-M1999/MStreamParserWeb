@@ -1,5 +1,6 @@
 import { type Request, type Response, type NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import { prisma } from "../db.js";
 
 // ---------------------------------------------------------------------------
 // Auth middleware: verifies the login JWT (carried in the HttpOnly cookie) and
@@ -54,17 +55,43 @@ export function optionalUser(req: Request): JwtPayload | null {
   }
 }
 
-/** Middleware for protected routes: 401 unless a valid JWT is present. */
-export function authenticate(req: Request, res: Response, next: NextFunction) {
+/** Middleware for protected routes: 401 unless a valid JWT is present AND the
+ *  account it names still exists.
+ *
+ *  The signature check alone is not enough: our JWTs are stateless and live for
+ *  24h, so a token minted before the user deleted their account (see
+ *  auth.service deleteAccount) would keep working until it expired. The lookup
+ *  is one indexed primary-key read per request — cheap next to what the routes
+ *  behind it already do. */
+export async function authenticate(req: Request, res: Response, next: NextFunction) {
   const token = readToken(req);
   if (!token || !configured()) {
     res.status(401).json({ error: "Not authenticated." });
     return;
   }
+  let payload: JwtPayload;
   try {
-    (req as AuthedRequest).user = jwt.verify(token, JWT_SECRET) as JwtPayload;
-    next();
+    payload = jwt.verify(token, JWT_SECRET) as JwtPayload;
   } catch {
     res.status(401).json({ error: "Not authenticated." });
+    return;
   }
+  try {
+    const exists = await prisma.user.findUnique({
+      where: { id: payload.userId },
+      select: { id: true },
+    });
+    if (!exists) {
+      res.status(401).json({ error: "Not authenticated." });
+      return;
+    }
+  } catch (err) {
+    // A database blip must not read as "your session is invalid" — that would
+    // log everyone out on a transient outage.
+    console.error("[auth] could not verify the account exists:", err);
+    res.status(503).json({ error: "Service temporarily unavailable." });
+    return;
+  }
+  (req as AuthedRequest).user = payload;
+  next();
 }

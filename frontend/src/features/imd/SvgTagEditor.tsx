@@ -39,8 +39,10 @@ export default function SvgTagEditor({
 }) {
   const analysis = useMemo(() => analyzeSvg(svg, mode), [svg, mode]);
 
-  // Plain, artwork-focused preview. focusSvgToContent strips <script>/on* so
-  // it's safe to render inline. `filled` (the live partial render) overrides it.
+  // Plain, artwork-focused preview. focusSvgToContent runs the template through
+  // DOMPurify on every path, which is what makes the dangerouslySetInnerHTML
+  // below safe — the markup is re-parsed there by the browser's lenient HTML
+  // parser. `filled` (the live partial render) overrides it and is sanitized too.
   const plainPreview = useMemo(() => focusSvgToContent(svg), [svg]);
   const [filled, setFilled] = useState<string | null>(null);
   const displaySvg = filled ?? plainPreview;

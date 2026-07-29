@@ -38,7 +38,9 @@ services:
       PORT: "3000"
       # In-network address of the db service (not 127.0.0.1); overrides any
       # DATABASE_URL in backend/.env so the app always uses the db service here.
-      DATABASE_URL: "mysql://msp:msp_local_dev@db:3306/MStreamParserWeb"
+      # Credentials come from MSP_DB_USER / MSP_DB_PASSWORD (see the db service)
+      # so nothing has to be edited in two places to change them.
+      DATABASE_URL: "mysql://${MSP_DB_USER:-msp}:${MSP_DB_PASSWORD:-msp_local_dev}@db:3306/MStreamParserWeb"
       # Same origin as the app so OAuth redirect + cookies work on one port.
       FRONTEND_ORIGIN: "http://127.0.0.1:3000"
       SPOTIFY_REDIRECT_URI: "http://127.0.0.1:3000/api/auth/spotify/callback"
@@ -53,11 +55,16 @@ services:
     image: mariadb:11.4
     container_name: msp-mariadb
     restart: unless-stopped
+    # These are LOCAL-ONLY development credentials, deliberately checked in so
+    # `docker compose up` works with no setup. They are not production secrets —
+    # Hetzner uses its own DATABASE_URL set as a server env var. Override any of
+    # them from the shell or a root .env file (e.g. MSP_DB_PASSWORD=...) if you
+    # expose this database beyond your own machine.
     environment:
       MARIADB_DATABASE: MStreamParserWeb
-      MARIADB_USER: msp
-      MARIADB_PASSWORD: msp_local_dev
-      MARIADB_ROOT_PASSWORD: root_local_dev
+      MARIADB_USER: "${MSP_DB_USER:-msp}"
+      MARIADB_PASSWORD: "${MSP_DB_PASSWORD:-msp_local_dev}"
+      MARIADB_ROOT_PASSWORD: "${MSP_DB_ROOT_PASSWORD:-root_local_dev}"
     ports:
       - "3306:3306"
     volumes:

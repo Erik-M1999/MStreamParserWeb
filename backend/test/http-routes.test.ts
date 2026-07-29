@@ -5,6 +5,14 @@ import { startApp, authCookie, readFirstSSE, type TestApp } from "./_helpers";
 // This exercises the thin HTTP wiring (auth guards, status mapping, query/body
 // parsing, redirects, SSE) without any real network or DB.
 
+// authenticate() confirms the account still exists, so the middleware needs a
+// user lookup. Mocked here on purpose: leaving it to hit the real database made
+// these tests silently depend on the seeded `testuser` row existing, which would
+// fail on a fresh clone or in CI.
+vi.mock("../src/db", () => ({
+  prisma: { user: { findUnique: vi.fn(async () => ({ id: 1 })) } },
+}));
+
 vi.mock("../src/modules/spotify/spotify.service", () => ({
   isConfigured: vi.fn(() => true),
   beginConnect: vi.fn(() => "https://accounts.spotify.com/authorize?x=1"),
@@ -56,6 +64,9 @@ import * as lastfm from "../src/modules/lastfm/lastfm.service";
 import * as rendering from "../src/modules/rendering/rendering.service";
 import * as library from "../src/modules/library/library.service";
 import * as apikeys from "../src/modules/apikeys/apikeys.service";
+import { prisma } from "../src/db";
+
+const dbUser = (prisma as unknown as { user: { findUnique: Mock } }).user;
 
 const sp = spotify as unknown as Record<string, Mock>;
 const lf = lastfm as unknown as Record<string, Mock>;
@@ -145,6 +156,31 @@ describe("apikeys routes", () => {
   it("401s without a login cookie", async () => {
     const res = await fetch(`${app.base}/api/keys`, { method: "POST" });
     expect(res.status).toBe(401);
+  });
+
+  // Our JWTs are stateless and last 24h, so deleting an account must not leave
+  // a working token behind: authenticate re-checks that the user still exists.
+  it("401s with a signature-valid token whose account no longer exists", async () => {
+    dbUser.findUnique.mockResolvedValueOnce(null); // account deleted
+    const res = await fetch(`${app.base}/api/keys`, {
+      method: "POST",
+      headers: { Cookie: cookie, "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "n" }),
+    });
+    expect(res.status).toBe(401);
+    expect(keys.createKey).not.toHaveBeenCalled();
+  });
+
+  // A database blip must not read as "your session is invalid" and log everyone
+  // out — that would turn a transient outage into a mass logout.
+  it("503s (not 401) when the account check itself fails", async () => {
+    dbUser.findUnique.mockRejectedValueOnce(new Error("connection lost"));
+    const res = await fetch(`${app.base}/api/keys`, {
+      method: "POST",
+      headers: { Cookie: cookie, "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "n" }),
+    });
+    expect(res.status).toBe(503);
   });
 
   it("creates, lists and revokes a key", async () => {

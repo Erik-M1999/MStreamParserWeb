@@ -16,7 +16,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        # Pinned to a commit SHA, not a tag: a tag can be silently repointed by
+        # the action owner, which would run their code with our deploy secrets.
+        # Update deliberately by bumping the SHA + the version comment together.
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       # Password-based SSH to konsoleH via sshpass — no marketplace action, so
       # nothing new enters the supply chain.

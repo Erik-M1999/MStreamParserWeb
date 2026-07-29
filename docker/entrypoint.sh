@@ -18,7 +18,10 @@ mkdir -p "$SECRET_DIR"
 ensure_secret() {
   name="$1"                 # environment variable name
   file="$SECRET_DIR/$2"     # where the generated value is persisted
-  eval "value=\${$name:-}"
+  # printenv instead of `eval "value=\${$name:-}"`: same result without handing
+  # a variable name to the shell parser. Only ever called with the two literals
+  # below, but eval on a constructed string is not a habit worth keeping.
+  value="$(printenv "$name" || true)"
   if [ -z "$value" ]; then
     [ -s "$file" ] || {
       openssl rand -hex 32 > "$file"

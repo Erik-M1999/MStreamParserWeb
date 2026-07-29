@@ -37,10 +37,23 @@ function modesForName(name: string): Mode[] {
   return [];
 }
 
+let warnedMissingTemplates = false;
+
 function listSvgFiles(): string[] {
   try {
     return fs.readdirSync(TEMPLATES_DIR).filter((f) => f.toLowerCase().endsWith(".svg"));
-  } catch {
+  } catch (err) {
+    // Swallowing this silently is how a packaging mistake once shipped as an
+    // empty "Demo Templates" folder with no clue why (the directory was simply
+    // missing from the container image). Degrade the same way, but say so once.
+    if (!warnedMissingTemplates) {
+      warnedMissingTemplates = true;
+      console.error(
+        `[library] cannot read demo templates at ${TEMPLATES_DIR} — the folder ` +
+          `will appear empty. Is sample-templates/ present in the deployment?`,
+        err,
+      );
+    }
     return [];
   }
 }
