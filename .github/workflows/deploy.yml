@@ -21,13 +21,12 @@ jobs:
       # Password-based SSH to konsoleH via sshpass — no marketplace action, so
       # nothing new enters the supply chain.
       #
-      # konsoleH's shared hosting blocks the SSH "exec" channel and refuses a
-      # shell session without a PTY, so we force a PTY (-tt). That makes the
-      # login shell interactive, and interactive bash IGNORES `set -e` — so we
-      # immediately hand off to a non-interactive inner `bash` fed our script as
-      # a quoted heredoc. There `set -euo pipefail` aborts on error, and its exit
-      # code is propagated back out so a failed step fails the workflow.
-      # (Login shell → profile sourced → node/npm/npx on PATH.)
+      # konsoleH's interactive SSH is on PORT 222 (port 22 accepts the password
+      # but refuses every session channel — that's what "exec/shell/PTY request
+      # failed" meant). We pass no command and pipe the build script into the
+      # login shell's stdin: the shell is a login shell (profile sourced → node
+      # on PATH) but non-interactive (stdin is a pipe, not a TTY), so
+      # `set -euo pipefail` in the script still aborts on error.
       - name: Deploy over SSH
         env:
           SSH_USER: ${{ secrets.HETZNER_SSH_USER }}
@@ -36,11 +35,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y sshpass
-          {
-            echo "bash <<'MSP_DEPLOY_EOF'"
-            cat deploy/hetzner-deploy.sh
-            echo "MSP_DEPLOY_EOF"
-            echo 'RC=$?; exit $RC'
-          } | sshpass -p "$SSH_PASSWORD" ssh -tt \
-                -o StrictHostKeyChecking=accept-new \
-                "$SSH_USER@$SSH_HOST"
+          sshpass -p "$SSH_PASSWORD" ssh -p 222 \
+            -o StrictHostKeyChecking=accept-new \
+            "$SSH_USER@$SSH_HOST" < deploy/hetzner-deploy.sh
