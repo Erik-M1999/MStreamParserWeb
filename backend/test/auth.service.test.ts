@@ -38,6 +38,28 @@ describe("auth.service register", () => {
     await expect(register({ email: "a@b.co", username: "u", password: "short" })).rejects.toMatchObject({ status: 400 });
   });
 
+  it("rejects a malformed email address (400)", async () => {
+    for (const email of ["notanemail", "no@domain", "@example.com", "a b@example.com", "a@b."]) {
+      await expect(
+        register({ email, username: "u", password: "password123" }),
+      ).rejects.toMatchObject({ status: 400 });
+    }
+    expect(user.create).not.toHaveBeenCalled();
+  });
+
+  it("accepts ordinary real-world addresses", async () => {
+    for (const email of [
+      "erik@m1999.de",
+      "first.last+tag@sub.example.co.uk",
+      "u_1-2@example-host.com",
+    ]) {
+      user.create.mockResolvedValueOnce({ id: 5, email, username: "u" });
+      await expect(
+        register({ email, username: "u", password: "password123" }),
+      ).resolves.toBeDefined();
+    }
+  });
+
   it("rejects a duplicate email/username (409)", async () => {
     user.findFirst.mockResolvedValueOnce({ id: 1 });
     await expect(register(validBody)).rejects.toMatchObject({ status: 409 });
@@ -92,5 +114,50 @@ describe("auth.service login", () => {
     const { token, user: u } = await login({ username: "erik", password: "password123" });
     expect(token.split(".")).toHaveLength(3); // JWT
     expect(u).toEqual({ id: 9, username: "erik", email: "e@x" });
+  });
+
+  // A missing user must still cost a bcrypt comparison. Without it the reply
+  // comes back in ~0ms vs ~190ms for a real user with a wrong password, which
+  // is a reliable "does this username exist?" oracle over the network.
+  it("spends a bcrypt comparison even when the username does not exist", async () => {
+    const compareSpy = vi.spyOn(bcrypt, "compare");
+
+    user.findUnique.mockResolvedValueOnce(null);
+    await expect(
+      login({ username: "ghost", password: "password123" }),
+    ).rejects.toMatchObject({ status: 401 });
+
+    expect(compareSpy).toHaveBeenCalledTimes(1);
+    // Compared against a real hash of something else — never the input itself.
+    const [submitted, hash] = compareSpy.mock.calls[0];
+    expect(submitted).toBe("password123");
+    expect(String(hash)).toMatch(/^\$2[aby]\$/); // a valid bcrypt hash
+    expect(await bcrypt.compare("password123", String(hash))).toBe(false);
+
+    compareSpy.mockRestore();
+  });
+
+  it("measures the same order of magnitude for unknown user and wrong password", async () => {
+    const realHash = await bcrypt.hash("correct-horse", 12);
+
+    user.findUnique.mockResolvedValueOnce(null);
+    let t = process.hrtime.bigint();
+    await login({ username: "ghost", password: "x" }).catch(() => {});
+    const unknownUserMs = Number(process.hrtime.bigint() - t) / 1e6;
+
+    user.findUnique.mockResolvedValueOnce({
+      id: 1, username: "erik", email: "e@x", passwordHash: realHash,
+    });
+    t = process.hrtime.bigint();
+    await login({ username: "erik", password: "x" }).catch(() => {});
+    const wrongPasswordMs = Number(process.hrtime.bigint() - t) / 1e6;
+
+    // Both paths run one cost-12 bcrypt, so neither should be near-instant and
+    // the ratio should stay small. Generous bounds: this is wall-clock timing
+    // on a shared CI box, not a precision benchmark.
+    expect(unknownUserMs).toBeGreaterThan(20);
+    const ratio =
+      Math.max(unknownUserMs, wrongPasswordMs) / Math.min(unknownUserMs, wrongPasswordMs);
+    expect(ratio).toBeLessThan(3);
   });
 });

@@ -75,7 +75,10 @@ async function lastfmGet<T>(
   };
   if (!res.ok || data.error) {
     if (data.error === 6) throw new Error("user_not_found");
-    console.error(`[lastfm] ${method} failed:`, res.status, data.error, data.message);
+    // Constant format string, values as arguments: `method` is only ever an
+    // internal literal today, but this keeps a caller-supplied one from being
+    // read as util.format specifiers if that ever changes.
+    console.error("[lastfm] %s failed:", method, res.status, data.error, data.message);
     throw new Error("lastfm_request_failed");
   }
   return data;

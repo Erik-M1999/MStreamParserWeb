@@ -66,13 +66,17 @@ const PORT = Number(process.env.PORT) || 3000;
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN ?? "http://127.0.0.1:5173";
 
 // Allow our frontend's browser-side calls (e.g. the SVG Texture Labs tool).
-// Both loopback spellings are allowed because the Next dev server answers on
-// localhost AND 127.0.0.1, and the browser treats them as different origins.
-const ALLOWED_ORIGINS = new Set([
-  FRONTEND_ORIGIN,
-  "http://127.0.0.1:5173",
-  "http://localhost:5173",
-]);
+// In production that is only the app's own origin: the deploy is single-origin
+// (Express serves the static export), so nothing cross-origin is needed. The
+// loopback entries are a dev-only convenience — the Next dev server answers on
+// both localhost AND 127.0.0.1 and the browser treats those as different
+// origins. Leaving them allowed in production, with credentials enabled, would
+// let a hostile page on a user's own machine call the live API as that user.
+const ALLOWED_ORIGINS = new Set([FRONTEND_ORIGIN]);
+if (process.env.NODE_ENV !== "production") {
+  ALLOWED_ORIGINS.add("http://127.0.0.1:5173");
+  ALLOWED_ORIGINS.add("http://localhost:5173");
+}
 
 // Minimal CORS. No credentials yet — the Spotify token lives on the backend.
 app.use((req: Request, res: Response, next) => {
