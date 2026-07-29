@@ -14,7 +14,10 @@
     "build:web": "npm --prefix ../frontend run build && node -e \"const fs=require('fs');fs.rmSync('public',{recursive:true,force:true});fs.cpSync('../frontend/out','public',{recursive:true})\"",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:db": "docker compose up -d --wait db && prisma migrate deploy",
+    "pretest": "npm run test:db",
+    "pretest:coverage": "npm run test:db"
   },
   "prisma": {
     "seed": "node --env-file-if-exists=.env dist/scripts/seed.js"
