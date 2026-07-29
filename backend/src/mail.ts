@@ -39,7 +39,7 @@ export async function sendWelcomeEmail(to: string, username: string): Promise<vo
     const { error } = await resend.emails.send({
       from: FROM,
       to,
-      subject: "Welcome to MStreamParserWeb",
+      subject: "Welcome to Music Streaming Tools",
       html,
       text,
     });

@@ -1,7 +1,12 @@
 # One-command start for the whole app (frontend + backend + database).
 #
-#   cp .env.example .env      # then fill in JWT_SECRET + TOKEN_ENC_KEY (min.)
 #   docker compose up --build # → http://127.0.0.1:3000
+#
+# App config + secrets are read from backend/.env (ONE source of truth, shared
+# with `npm run dev`). That file is optional here: without it the app still boots
+# — JWT_SECRET and TOKEN_ENC_KEY are auto-generated on first start (persisted in
+# the msp_secrets volume), and the Spotify/Last.fm/email integrations simply stay
+# off until their keys are present.
 #
 # The `app` container builds the static frontend + the Express API into one
 # Node process and applies DB migrations on start; `db` is MariaDB.
@@ -21,24 +26,28 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # Single source of truth for app config + secrets, shared with `npm run dev`.
+    # required:false → the container still starts if the file is absent (the
+    # entrypoint auto-generates the secrets; optional integrations stay off).
+    env_file:
+      - path: ./backend/.env
+        required: false
     environment:
+      # Docker-network / single-origin overrides — these WIN over env_file.
       NODE_ENV: production
       PORT: "3000"
-      # In-network address of the db service (not 127.0.0.1).
+      # In-network address of the db service (not 127.0.0.1); overrides any
+      # DATABASE_URL in backend/.env so the app always uses the db service here.
       DATABASE_URL: "mysql://msp:msp_local_dev@db:3306/MStreamParserWeb"
       # Same origin as the app so OAuth redirect + cookies work on one port.
       FRONTEND_ORIGIN: "http://127.0.0.1:3000"
       SPOTIFY_REDIRECT_URI: "http://127.0.0.1:3000/api/auth/spotify/callback"
-      # Secrets + optional integrations come from the root .env (see .env.example).
-      JWT_SECRET: "${JWT_SECRET:-}"
-      TOKEN_ENC_KEY: "${TOKEN_ENC_KEY:-}"
-      SPOTIFY_CLIENT_ID: "${SPOTIFY_CLIENT_ID:-}"
-      SPOTIFY_CLIENT_SECRET: "${SPOTIFY_CLIENT_SECRET:-}"
-      LASTFM_API_KEY: "${LASTFM_API_KEY:-}"
-      RESEND_API_KEY: "${RESEND_API_KEY:-}"
-      MAIL_FROM: "${MAIL_FROM:-}"
     ports:
       - "3000:3000"
+    volumes:
+      # Persists the auto-generated JWT_SECRET / TOKEN_ENC_KEY across restarts, so
+      # sessions + encrypted Spotify tokens survive. Delete the volume to rotate.
+      - msp_secrets:/app/backend/run
 
   db:
     image: mariadb:11.4
@@ -63,3 +72,4 @@ services:
 
 volumes:
   msp_db_data:
+  msp_secrets:

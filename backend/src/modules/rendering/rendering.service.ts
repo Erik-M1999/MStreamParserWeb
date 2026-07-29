@@ -118,7 +118,7 @@ async function buildFill(
         np.type === "episode" ? "a podcast episode" : np.type === "ad" ? "an ad" : `a ${np.type}`;
       throw {
         status: 409,
-        message: `Spotify is playing ${label}. Only songs are supported — play a track and try again.`,
+        message: `Spotify is playing ${label}. Only songs are supported. Play a track and try again.`,
       } as ConflictError;
     }
     text.artist = np.track.artist;
