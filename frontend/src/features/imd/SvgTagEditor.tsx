@@ -177,7 +177,7 @@ export default function SvgTagEditor({
           Hovering a row below outlines the element it maps to. */}
       <div>
         <p className="text-xs uppercase tracking-wider text-on-surface-variant">
-          Preview {filled ? "(tags so far)" : "(plain)"} — hover a row to locate it
+          Preview {filled ? "(tags so far)" : "(plain)"}. Hover a row to locate it
           {previewLoading ? " · rendering…" : ""}
         </p>
         <div
@@ -280,7 +280,7 @@ export default function SvgTagEditor({
                   onChange={(e) => setAssignment(c.ref, e.target.value || null)}
                   className="shrink-0 rounded border border-outline bg-surface-container-lowest px-2 py-1 text-xs text-on-surface"
                 >
-                  <option value="">— none —</option>
+                  <option value="">- none -</option>
                   {optionsFor(c.kind).map((s) => (
                     <option key={s} value={s}>
                       {s}

@@ -539,7 +539,7 @@ export default function CurrentSongMode({
             emptyMsg
           ) : nowPlaying.supported === false ? (
             <span className="text-amber-600">
-              {providerLabel} is playing {unsupportedLabel(nowPlaying.type)} —
+              {providerLabel} is playing {unsupportedLabel(nowPlaying.type)} -
               only songs are supported.
             </span>
           ) : (
@@ -667,7 +667,7 @@ export default function CurrentSongMode({
           </button>
           {songChanged && (
             <p className="text-xs text-amber-600">
-              The song changed — re-render to update the preview.
+              The song changed, re-render to update the preview.
             </p>
           )}
         </div>

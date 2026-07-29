@@ -112,7 +112,7 @@ export default function ApiKeysPanel() {
       {created && (
         <div className="border border-success bg-success/10 p-4">
           <p className="type-label-bold text-success">
-            Copy your key now — you won&apos;t see it again.
+            Copy your key now. You won&apos;t see it again.
           </p>
           <div className="mt-2 flex items-center gap-2">
             <code className="flex-1 break-all bg-surface-container-lowest px-2 py-1 text-xs text-on-surface">

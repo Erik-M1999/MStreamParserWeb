@@ -148,7 +148,7 @@ export default function AuthStatus() {
       <Modal open={deleteOpen} onClose={closeDelete} title="Delete account" size="small">
         <div className="space-y-4">
           <p className="text-sm text-on-surface">
-            This permanently deletes your account and everything in it — templates,
+            This permanently deletes your account and everything in it like templates,
             folders, connected APIs and API keys. This can&apos;t be undone.
           </p>
           <label className="block text-sm">

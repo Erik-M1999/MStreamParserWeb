@@ -150,8 +150,7 @@ export default function ApiPanel({
       >
         <div className="space-y-4">
           <p className="text-sm text-on-surface-variant">
-            Enter your Last.fm username or profile link. Read-only — no password
-            needed.
+            Enter your Last.fm username or profile link. Read-only.
           </p>
           <input
             type="text"
